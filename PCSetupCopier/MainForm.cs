@@ -10,10 +10,11 @@ internal sealed class MainForm : Form
     private readonly Label status = new();
     private PcSnapshot? current;
     private PcSnapshot? source;
+    private readonly Button updateButton = new();
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M1.3 (診断・比較専用)";
+        Text = "PC Setup Copier — M1.4 (診断・比較・更新)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -31,6 +32,11 @@ internal sealed class MainForm : Form
         AddAction(actions, "コピー元JSONを選ぶ", Import);
         AddAction(actions, "すべて選択", () => SelectRows(true));
         AddAction(actions, "選択解除", () => SelectRows(false));
+        updateButton.Text = "更新を確認";
+        updateButton.AutoSize = true;
+        updateButton.MinimumSize = new Size(130, 36);
+        updateButton.Click += async (_, _) => await UpdateAsync();
+        actions.Controls.Add(updateButton);
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -75,6 +81,28 @@ internal sealed class MainForm : Form
         var button = new Button { Text = label, AutoSize = true, MinimumSize = new Size(130, 36) };
         button.Click += (_, _) => action();
         panel.Controls.Add(button);
+    }
+
+    private async Task UpdateAsync()
+    {
+        updateButton.Enabled = false;
+        try
+        {
+            var progress = new Progress<string>(message => status.Text = message);
+            string result = await UpdateManager.CheckAndStageAsync(progress, CancellationToken.None);
+            MessageBox.Show(this, result, "更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (result.Contains("アプリを終了して更新します。", StringComparison.Ordinal))
+                Close();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "更新エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            updateButton.Enabled = true;
+            if (!IsDisposed) UpdateStatus();
+        }
     }
 
     private void Scan()
