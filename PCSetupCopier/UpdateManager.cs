@@ -78,6 +78,8 @@ internal static class UpdateManager
             if (!string.Equals(stagedSha, latestSha, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("ビルドとコミットIDが一致しません。");
 
+            progress.Report("新しいアプリを事前検証しています…");
+            await PreflightAsync(stagedExe, cancellationToken);
             // Execute the staged app itself as a standalone helper; Unicode paths are passed as separate arguments.
             LaunchSwap(stage);
             return "更新ファイルを取得しました。アプリを終了して更新します。";
@@ -128,6 +130,44 @@ internal static class UpdateManager
         return output;
     }
 
+    private static async Task PreflightAsync(string stagedExe, CancellationToken cancellationToken)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(stagedExe)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(stagedExe)!
+            }
+        };
+        process.StartInfo.ArgumentList.Add("--verify-package");
+        if (!process.Start())
+            throw new InvalidOperationException("新しいアプリの事前検証を開始できません。");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw new InvalidOperationException("新しいアプリの事前検証が時間内に終わりませんでした。");
+        }
+        if (process.ExitCode != 0)
+            throw new InvalidDataException("新しいアプリの事前検証に失敗しました。現在のアプリは変更していません。");
+    }
+
+    internal static int VerifyPackage()
+    {
+        try
+        {
+            var marker = Path.Combine(AppContext.BaseDirectory, "build-info.json");
+            using var document = JsonDocument.Parse(File.ReadAllText(marker));
+            var sha = document.RootElement.GetProperty("commit").GetString();
+            return sha is { Length: 40 } && sha.All(Uri.IsHexDigit) ? 0 : 1;
+        }
+        catch { return 1; }
+    }
+
     private static void LaunchSwap(string stage)
     {
         string installDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
@@ -172,6 +212,9 @@ internal static class UpdateManager
             try
             {
                 using var old = Process.GetProcessById(previousPid);
+                if (old.HasExited) { }
+                else if (!string.Equals(Path.GetFullPath(old.MainModule?.FileName ?? ""), Path.GetFullPath(targetExe), StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("終了待ち対象が元のアプリと一致しません。");
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 await old.WaitForExitAsync(timeout.Token);
             }
@@ -210,8 +253,8 @@ internal static class UpdateManager
                 ex = new AggregateException("更新失敗・復元も失敗しました。", ex, rollbackError);
             }
             try { await File.WriteAllTextAsync(logPath, ex.ToString()); } catch { }
-            MessageBox.Show("更新に失敗しました。元のアプリを保持または復元しました。\\n" +
-                ex.Message + "\\nログ: " + logPath, "PC Setup Copier", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("更新に失敗しました。元のアプリを保持または復元しました。\n" +
+                ex.Message + "\nログ: " + logPath, "PC Setup Copier", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
     }
