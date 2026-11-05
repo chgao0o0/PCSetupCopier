@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace PCSetupCopier;
@@ -79,8 +78,7 @@ internal static class UpdateManager
             if (!string.Equals(stagedSha, latestSha, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("ビルドとコミットIDが一致しません。");
 
-            // The updater is a separate short-lived cmd process; it waits until this app exits,
-            // retains the previous EXE, swaps verified artifact files and relaunches.
+            // Execute the staged app itself as a standalone helper; Unicode paths are passed as separate arguments.
             LaunchSwap(stage);
             return "更新ファイルを取得しました。アプリを終了して更新します。";
         }
@@ -134,58 +132,87 @@ internal static class UpdateManager
     {
         string installDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         string destination = Path.Combine(installDir, ExeName);
-        if (!File.Exists(destination)) throw new FileNotFoundException("配布版exeが見つかりません。", destination);
+        string stagedExe = Path.Combine(stage, ExeName);
+        if (!File.Exists(destination) || !File.Exists(stagedExe))
+            throw new FileNotFoundException("更新元または更新先のexeがありません。");
 
-        // Controlled paths only, all produced by the app; batch quoting includes Windows cmd metacharacter defenses.
-        foreach (var p in new[] { installDir, stage })
-            if (p.IndexOfAny(['"', '%', '!', '^', '&', '|', '<', '>', '\r', '\n']) >= 0)
-                throw new InvalidOperationException("更新先のパスに未対応の文字が含まれています。");
-
-        string scriptPath = Path.Combine(stage, "apply-update.cmd");
-        string script = $"""
-            @echo off
-            setlocal DisableDelayedExpansion
-            set "DEST={installDir}"
-            set "STAGE={stage}"
-            set /a TRIES=0
-            :wait
-            tasklist /FI "PID eq {Environment.ProcessId}" /FO CSV /NH | findstr /C:"{Environment.ProcessId}" >nul
-            if errorlevel 1 goto swap
-            set /a TRIES+=1
-            if %TRIES% GEQ 30 goto failed
-            timeout /t 1 /nobreak >nul
-            goto wait
-            :swap
-            if exist "%DEST%\{ExeName}.previous" del /q "%DEST%\{ExeName}.previous"
-            if exist "%DEST%\build-info.json.previous" del /q "%DEST%\build-info.json.previous"
-            if exist "%DEST%\build-info.json" copy /Y "%DEST%\build-info.json" "%DEST%\build-info.json.previous" >nul
-            move /Y "%DEST%\{ExeName}" "%DEST%\{ExeName}.previous" >nul
-            if errorlevel 1 goto failed
-            copy /Y "%STAGE%\{ExeName}" "%DEST%\{ExeName}" >nul
-            if errorlevel 1 goto rollback
-            copy /Y "%STAGE%\build-info.json" "%DEST%\build-info.json" >nul
-            if errorlevel 1 goto rollback
-            start "" "%DEST%\{ExeName}"
-            if errorlevel 1 goto rollback
-            goto done
-            :rollback
-            if exist "%DEST%\{ExeName}.previous" move /Y "%DEST%\{ExeName}.previous" "%DEST%\{ExeName}" >nul
-            if exist "%DEST%\build-info.json.previous" copy /Y "%DEST%\build-info.json.previous" "%DEST%\build-info.json" >nul
-            :failed
-            echo Update failed. Check installed files and backups.
-            pause
-            :done
-            endlocal
-            """; 
-        File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
-        var psi = new ProcessStartInfo("cmd.exe")
+        var psi = new ProcessStartInfo(stagedExe)
         {
-            UseShellExecute = true,
-            CreateNoWindow = false,
-            WorkingDirectory = installDir
+            UseShellExecute = false,
+            WorkingDirectory = stage,
+            CreateNoWindow = true
         };
-        psi.ArgumentList.Add("/c");
-        psi.ArgumentList.Add(scriptPath);
-        Process.Start(psi);
+        psi.ArgumentList.Add("--apply-staged-update");
+        psi.ArgumentList.Add(installDir);
+        psi.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (Process.Start(psi) == null)
+            throw new InvalidOperationException("更新用プロセスを開始できませんでした。");
+    }
+
+    // Runs inside a separately launched staged executable, not inside the normal UI.
+    internal static async Task<int> ApplyStagedAsync(string installDir, int previousPid)
+    {
+        string stage = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        string sourceExe = Path.Combine(stage, ExeName);
+        string sourceMarker = Path.Combine(stage, "build-info.json");
+        string targetExe = Path.Combine(installDir, ExeName);
+        string targetMarker = Path.Combine(installDir, "build-info.json");
+        string backupExe = Path.Combine(installDir, "PCSetupCopier.exe.previous");
+        string backupMarker = Path.Combine(installDir, "build-info.json.previous");
+        string logPath = Path.Combine(stage, "update.log");
+        bool moved = false;
+        try
+        {
+            if (!File.Exists(sourceExe) || !File.Exists(sourceMarker))
+                throw new FileNotFoundException("展開済み更新ファイルが不足しています。");
+            if (!Directory.Exists(installDir) || !File.Exists(targetExe))
+                throw new DirectoryNotFoundException("既存のアプリが見つかりません。");
+
+            // Confirm old app has exited before overwriting files; do not kill it.
+            try
+            {
+                using var old = Process.GetProcessById(previousPid);
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                await old.WaitForExitAsync(timeout.Token);
+            }
+            catch (ArgumentException) { } // Already exited.
+
+            File.Copy(targetExe, backupExe, true);
+            if (File.Exists(targetMarker)) File.Copy(targetMarker, backupMarker, true);
+            else if (File.Exists(backupMarker)) File.Delete(backupMarker);
+            moved = true;
+            File.Copy(sourceExe, targetExe, true);
+            File.Copy(sourceMarker, targetMarker, true);
+
+            var launch = new ProcessStartInfo(targetExe)
+            {
+                UseShellExecute = false,
+                WorkingDirectory = installDir
+            };
+            if (Process.Start(launch) == null)
+                throw new InvalidOperationException("更新後のアプリを起動できませんでした。");
+
+            await File.WriteAllTextAsync(logPath, "Update applied. Previous executable retained in " + backupExe);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                if (moved)
+                {
+                    File.Copy(backupExe, targetExe, true);
+                    if (File.Exists(backupMarker)) File.Copy(backupMarker, targetMarker, true);
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                ex = new AggregateException("更新失敗・復元も失敗しました。", ex, rollbackError);
+            }
+            try { await File.WriteAllTextAsync(logPath, ex.ToString()); } catch { }
+            MessageBox.Show("更新に失敗しました。元のアプリを保持または復元しました。\\n" +
+                ex.Message + "\\nログ: " + logPath, "PC Setup Copier", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return 1;
+        }
     }
 }
