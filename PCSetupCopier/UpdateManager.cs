@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -60,6 +61,18 @@ internal static class UpdateManager
                 throw new InvalidDataException("更新ファイルが不足しています。");
             if (new FileInfo(stagedExe).Length < 100_000)
                 throw new InvalidDataException("実行ファイルのサイズが不正です。");
+            string checksumFile = Path.Combine(stage, ExeName + ".sha256");
+            if (!File.Exists(checksumFile))
+                throw new InvalidDataException("SHA-256検証ファイルがありません。");
+            string expectedHash = (await File.ReadAllTextAsync(checksumFile, cancellationToken)).Trim();
+            if (expectedHash.Length != 64 || !expectedHash.All(Uri.IsHexDigit))
+                throw new InvalidDataException("SHA-256検証ファイルが不正です。");
+            await using (var input = File.OpenRead(stagedExe))
+            {
+                string computedHash = Convert.ToHexString(await SHA256.HashDataAsync(input, cancellationToken));
+                if (!computedHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("更新ファイルのSHA-256が一致しません。");
+            }
 
             using var marker = JsonDocument.Parse(await File.ReadAllTextAsync(stagedMarker, cancellationToken));
             string stagedSha = marker.RootElement.GetProperty("commit").GetString() ?? "";
@@ -137,13 +150,15 @@ internal static class UpdateManager
             set /a TRIES=0
             :wait
             tasklist /FI "PID eq {Environment.ProcessId}" /FO CSV /NH | findstr /C:"{Environment.ProcessId}" >nul
-            if not errorlevel 1 (
-                set /a TRIES+=1
-                if %TRIES% GEQ 30 goto failed
-                timeout /t 1 /nobreak >nul
-                goto wait
-            )
+            if errorlevel 1 goto swap
+            set /a TRIES+=1
+            if %TRIES% GEQ 30 goto failed
+            timeout /t 1 /nobreak >nul
+            goto wait
+            :swap
             if exist "%DEST%\{ExeName}.previous" del /q "%DEST%\{ExeName}.previous"
+            if exist "%DEST%\build-info.json.previous" del /q "%DEST%\build-info.json.previous"
+            if exist "%DEST%\build-info.json" copy /Y "%DEST%\build-info.json" "%DEST%\build-info.json.previous" >nul
             move /Y "%DEST%\{ExeName}" "%DEST%\{ExeName}.previous" >nul
             if errorlevel 1 goto failed
             copy /Y "%STAGE%\{ExeName}" "%DEST%\{ExeName}" >nul
@@ -151,15 +166,17 @@ internal static class UpdateManager
             copy /Y "%STAGE%\build-info.json" "%DEST%\build-info.json" >nul
             if errorlevel 1 goto rollback
             start "" "%DEST%\{ExeName}"
+            if errorlevel 1 goto rollback
             goto done
             :rollback
             if exist "%DEST%\{ExeName}.previous" move /Y "%DEST%\{ExeName}.previous" "%DEST%\{ExeName}" >nul
+            if exist "%DEST%\build-info.json.previous" copy /Y "%DEST%\build-info.json.previous" "%DEST%\build-info.json" >nul
             :failed
-            echo Update failed. Existing app was preserved where possible.
+            echo Update failed. Check installed files and backups.
             pause
             :done
             endlocal
-            """;
+            """; 
         File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
         var psi = new ProcessStartInfo("cmd.exe")
         {
