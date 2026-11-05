@@ -40,3 +40,8 @@ M1.6 adds persistent preview checkbox selections and a comparable-items counter.
 
 ### M1.6 updater hotfix
 The previous M1.5 CMD-based updater may fail when the installation directory contains Japanese characters. M1.6 launches the staged .NET executable as a separate helper instead, with Unicode-safe argument handling, a 45-second wait for the old process, file backups, and a detailed error log. **Because the old updater is broken, one manual installation of the successful M1.6 build may be necessary.** This update mechanism still needs end-to-end Windows testing.
+
+
+### M1.7 staged-update preflight
+
+Before changing an installed executable, the app now launches the downloaded packaged executable using `--verify-package` and checks that it exits successfully. The Windows Actions workflow runs the same package-level smoke test on every build. The old exe and metadata are still backed up before replacement, with rollback attempted on failure. This guards against broken packaging; it does **not** prove a full update or rollback succeeds on the user's Windows computer. Windows settings remain read-only.
