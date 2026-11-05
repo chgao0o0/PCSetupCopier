@@ -123,10 +123,9 @@ internal static class UpdateManager
         string destination = Path.Combine(installDir, ExeName);
         if (!File.Exists(destination)) throw new FileNotFoundException("配布版exeが見つかりません。", destination);
 
-        string backup = destination + ".previous";
         // Controlled paths only, all produced by the app; batch quoting includes Windows cmd metacharacter defenses.
         foreach (var p in new[] { installDir, stage })
-            if (p.Contains('"') || p.Contains('%') || p.Contains('!') || p.Contains('^'))
+            if (p.IndexOfAny(['"', '%', '!', '^', '&', '|', '<', '>', '\r', '\n']) >= 0)
                 throw new InvalidOperationException("更新先のパスに未対応の文字が含まれています。");
 
         string scriptPath = Path.Combine(stage, "apply-update.cmd");
