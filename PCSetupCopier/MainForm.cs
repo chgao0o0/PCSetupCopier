@@ -15,7 +15,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M1.6 (診断・比較・更新)";
+        Text = "PC Setup Copier — M1.7 (診断・比較・更新)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
