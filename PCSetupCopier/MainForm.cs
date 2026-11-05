@@ -11,10 +11,11 @@ internal sealed class MainForm : Form
     private PcSnapshot? current;
     private PcSnapshot? source;
     private readonly Button updateButton = new();
+    private readonly HashSet<string> selectedIds = new(StringComparer.Ordinal);
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M1.4 (診断・比較・更新)";
+        Text = "PC Setup Copier — M1.5 (診断・比較・更新)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -63,7 +64,13 @@ internal sealed class MainForm : Form
         {
             if (grid.IsCurrentCellDirty) grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
-        grid.CellValueChanged += (_, e) => { if (e.ColumnIndex == 0 && e.RowIndex >= 0) UpdateStatus(); };
+        grid.CellValueChanged += (_, e) =>
+        {
+            if (e.ColumnIndex != 0 || e.RowIndex < 0 || grid.Rows[e.RowIndex].Tag is not string id) return;
+            if (grid.Rows[e.RowIndex].Cells[0].Value is true) selectedIds.Add(id);
+            else selectedIds.Remove(id);
+            UpdateStatus();
+        };
         status.Dock = DockStyle.Bottom;
         status.Height = 36;
         status.Padding = new Padding(20, 5, 0, 0);
@@ -134,7 +141,7 @@ internal sealed class MainForm : Form
                 other.Status == "取得済み" && item.Value != null && other.Value != null;
             string state = other == null ? item.Status : !comparable ? "比較不可" :
                 item.Value == other.Value ? "一致" : "差分あり";
-            int index = grid.Rows.Add(false, item.DisplayName, item.Value ?? "—",
+            int index = grid.Rows.Add(selectedIds.Contains(item.Id), item.DisplayName, item.Value ?? "—",
                 other?.Value ?? "—", state, item.Description);
             // Selection is only a preview. No Windows setting writes are present.
             grid.Rows[index].Tag = item.Id;
@@ -147,7 +154,13 @@ internal sealed class MainForm : Form
 
     private void SelectRows(bool selected)
     {
-        foreach (DataGridViewRow row in grid.Rows) row.Cells[0].Value = selected;
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            if (row.Tag is not string id) continue;
+            row.Cells[0].Value = selected;
+            if (selected) selectedIds.Add(id);
+            else selectedIds.Remove(id);
+        }
         UpdateStatus();
     }
 
@@ -155,7 +168,9 @@ internal sealed class MainForm : Form
     {
         if (current == null) return;
         int count = grid.Rows.Cast<DataGridViewRow>().Count(r => r.Cells[0].Value is true);
-        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count}項目（プレビューのみ）" +
+        int ready = grid.Rows.Cast<DataGridViewRow>().Count(r =>
+            r.Cells[0].Value is true && r.Cells[4].Value is string comparison && comparison is "一致" or "差分あり");
+        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（変更は行いません）" +
             (source == null ? " / コピー元JSON未選択" : $" / コピー元: {source.ComputerName}") +
             " / 未対応・未取得項目は適用不可";
     }
