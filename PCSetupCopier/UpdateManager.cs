@@ -32,11 +32,20 @@ internal static class UpdateManager
         if (runs.RootElement.GetArrayLength() == 0)
             throw new InvalidOperationException("成功済みのWindowsビルドが見つかりません。");
 
+        // A successful workflow from an older commit is not necessarily the latest release.
+        string branchSha = (await GhAsync(
+            ["api", "repos/chgao0o0/PCSetupCopier/commits/main", "--jq", ".sha"],
+            cancellationToken)).Trim();
+        if (branchSha.Length != 40 || !branchSha.All(Uri.IsHexDigit))
+            throw new InvalidDataException("mainのコミットIDを取得できませんでした。");
+
         var run = runs.RootElement[0];
         var latestSha = run.GetProperty("headSha").GetString() ?? "";
         var runId = run.GetProperty("databaseId").GetInt64();
         if (latestSha.Length != 40)
             throw new InvalidDataException("GitHubから正しいコミットIDを取得できませんでした。");
+        if (!string.Equals(latestSha, branchSha, StringComparison.OrdinalIgnoreCase))
+            return "最新版のビルドはまだ成功していません。古いビルドを最新版として扱わず、GitHub Actionsの完了を確認してください。";
         if (string.Equals(oldSha, latestSha, StringComparison.OrdinalIgnoreCase))
             return "すでに最新版です。";
 
