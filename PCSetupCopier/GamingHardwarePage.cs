@@ -47,7 +47,8 @@ internal sealed class GamingHardwarePage : UserControl
         layout.Controls.Add(displays, 0, 1);
 
         var commands = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        AddButton(commands, "ゲームのexeを追加", AddGames);
+        AddButton(commands, "ゲームを自動検出", DiscoverGames);
+        AddButton(commands, "exeを手動追加", AddGames);
         AddButton(commands, "選択行を削除", RemoveSelected);
         AddButton(commands, "診断を更新", RefreshAll);
         AddButton(commands, "詳細ディスプレイ設定", OpenAdvancedDisplay);
@@ -159,6 +160,87 @@ internal sealed class GamingHardwarePage : UserControl
         catch (Exception ex)
         {
             info.Text = "診断更新で問題が発生しました: " + ex.Message;
+        }
+    }
+
+    private void DiscoverGames()
+    {
+        try
+        {
+            var found = GameDiscovery.Find().Where(x => !games.Rows.Cast<DataGridViewRow>().Any(
+                row => string.Equals(row.Cells["Path"].Value as string, x.Exe,
+                    StringComparison.OrdinalIgnoreCase))).Take(150).ToArray();
+            if (found.Length == 0)
+            {
+                MessageBox.Show(this, "Steam / Epicで追加できるゲームが見つかりませんでした。手動追加も利用できます。",
+                    "ゲームの自動検出", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using var dialog = new Form {
+                Text = "ゲーム自動検出 — 登録するexeを確認",
+                StartPosition = FormStartPosition.CenterParent,
+                Size = new Size(850, 570),
+                MinimumSize = new Size(600, 380)
+            };
+            var list = new DataGridView {
+                Dock = DockStyle.Fill, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                AllowUserToAddRows = false, RowHeadersVisible = false,
+                BackgroundColor = Color.White
+            };
+            list.Columns.Add(new DataGridViewCheckBoxColumn {
+                HeaderText = "登録", Name = "Register", FillWeight = 45
+            });
+            list.Columns.Add(new DataGridViewTextBoxColumn {
+                HeaderText = "ゲーム名", ReadOnly = true, FillWeight = 130
+            });
+            list.Columns.Add(new DataGridViewTextBoxColumn {
+                HeaderText = "検出元", ReadOnly = true, FillWeight = 65
+            });
+            list.Columns.Add(new DataGridViewTextBoxColumn {
+                HeaderText = "exe候補（確認して選択）", ReadOnly = true, FillWeight = 300
+            });
+            foreach (var item in found)
+            {
+                int row = list.Rows.Add(!item.Ambiguous, item.Title, item.Store, item.Exe);
+                list.Rows[row].Tag = item;
+                list.Rows[row].Cells[3].ToolTipText =
+                    item.Ambiguous ? "複数の実行ファイル候補があります。正しいゲーム本体か確認してください。" : item.Exe;
+            }
+            var heading = new Label {
+                Dock = DockStyle.Top, Height = 56,
+                Text = "検出結果はゲーム本体のexeとは限りません。パスを確認して登録してください。\n未チェックのゲームは追加しません。登録だけではWindowsの設定は変更しません。",
+                Padding = new Padding(12, 8, 8, 5)
+            };
+            var actions = new FlowLayoutPanel {
+                Dock = DockStyle.Bottom, Height = 54,
+                FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(12, 8, 12, 6)
+            };
+            var accept = new Button { Text = "チェックしたゲームを登録", Width = 210, Height = 34,
+                DialogResult = DialogResult.OK };
+            var cancel = new Button { Text = "キャンセル", Width = 105, Height = 34,
+                DialogResult = DialogResult.Cancel };
+            actions.Controls.Add(accept);
+            actions.Controls.Add(cancel);
+            list.CurrentCellDirtyStateChanged += (_, _) => {
+                if (list.IsCurrentCellDirty) list.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
+            dialog.Controls.Add(list);
+            dialog.Controls.Add(actions);
+            dialog.Controls.Add(heading);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            int added = 0;
+            foreach (DataGridViewRow row in list.Rows)
+            {
+                if (row.Cells[0].Value is not true || row.Tag is not GameDiscovery.Candidate item) continue;
+                try { AddGameRow(item.Exe); added++; } catch { }
+            }
+            SaveGameRows();
+            info.Text = added + "件のゲームを登録しました。GPU優先設定はまだ変更していません。";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "ゲーム自動検出に失敗", MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
     }
 
