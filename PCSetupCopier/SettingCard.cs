@@ -33,6 +33,7 @@ internal sealed class SettingCard : Panel
     {
         BackColor = supported ? Color.White : Color.FromArgb(246, 248, 251);
         Height = supported ? 132 : 88;
+        Selected.Visible = false;
         Width = 760;
         Margin = new Padding(5, 5, 5, 10);
         Padding = new Padding(18, 10, 18, 10);
@@ -64,7 +65,7 @@ internal sealed class SettingCard : Panel
         };
         content.Controls.Add(title, 0, 0);
         content.Controls.Add(descriptionLabel, 0, 1);
-        content.Controls.Add(Selected, 1, 0);
+        // Desired values are compared automatically; no second selection checkbox.
 
         if (supported)
         {
@@ -73,9 +74,12 @@ internal sealed class SettingCard : Panel
         }
         else
         {
-            Selected.Text = "未対応";
-            Selected.Enabled = false;
-            Selected.Checked = false;
+            var badge = new Label {
+                Text = "未対応", AutoSize = true, Anchor = AnchorStyles.Right,
+                ForeColor = Muted, BackColor = Color.FromArgb(235, 239, 245),
+                Padding = new Padding(9, 5, 9, 5)
+            };
+            content.Controls.Add(badge, 1, 0);
         }
         Controls.Add(content);
 
