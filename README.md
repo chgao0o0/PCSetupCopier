@@ -1,3 +1,13 @@
+## M5.2 — One-click *staging* for game presets and NVIDIA guidance
+
+- On the existing **プリセット** tab, choose one of four built-in templates: FPS重視（対戦ゲーム）, バランス重視, 画質・配信重視, 最小変更（安全）.
+- Choosing a template stages per-item *desired values* and *apply-target switches* in **自由設定**. It does **not** apply anything to Windows. The user can override any item, then explicitly confirm the existing **選択項目を一括適用** transaction. Missing or unsupported power plans are deliberately excluded, never silently substituted.
+- Personal named presets still work independently and can be saved with the currently staged choices.
+- Added **NVIDIA設定** tab with read-only NVIDIA display-adapter detection and tailored checks for NVIDIA Reflex, low-latency mode, power management, G-SYNC/V-Sync, frame caps, texture quality, DLSS and NVIDIA App overlays. This is guidance only: it does not claim to read or change proprietary NVIDIA DRS/3D driver profile values.
+- The gaming hardware tab now presents monitor refresh controls **above** game detection controls as requested.
+- NVIDIA driver configuration needs a separately validated supported NVIDIA API workflow, including profile-level backup/readback/rollback, before any future automatic apply is enabled. We do not change undocumented NVIDIA registry keys.
+- The automatic presets only change existing supported Windows preferences. Their target values are *suggestions* rather than guaranteed maximum FPS across hardware or individual games.
+
 ## M5.1 — Launcher-independent game discovery
 
 - The automatic discovery dialog now combines Steam/Epic manifests with Windows installed-program registration (often including EA app, Battle.net, Ubisoft Connect, GOG and standalone installers), Start Menu/Desktop shortcuts, common game directories on fixed drives and up to 12 user-selected additional game folders.
