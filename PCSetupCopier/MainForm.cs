@@ -58,7 +58,24 @@ internal sealed class MainForm : Form
     };
 
     private readonly Button freeApplyButton = new() { Text = "マウス加速を適用", AutoSize = true, MinimumSize = new Size(190, 38) };
-    private readonly TabControl tabs = new() { Dock = DockStyle.Fill };
+    private readonly TabControl tabs = new() {
+        Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons,
+        SizeMode = TabSizeMode.Fixed, ItemSize = new Size(0, 1), Multiline = true
+    };
+    private readonly FlowLayoutPanel navigation = new() {
+        Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
+        WrapContents = false, AutoScroll = true, BackColor = Color.FromArgb(31, 44, 67),
+        Padding = new Padding(7, 14, 5, 12)
+    };
+    private readonly List<Button> navigationButtons = [];
+    private readonly Label diagnosticOverview = new() {
+        Dock = DockStyle.Fill, Font = new Font("Yu Gothic UI", 11f, FontStyle.Bold),
+        ForeColor = Color.FromArgb(34, 55, 86), Padding = new Padding(12)
+    };
+    private readonly Label diagnosticDetail = new() {
+        Dock = DockStyle.Fill, Padding = new Padding(12, 8, 12, 6),
+        ForeColor = Color.FromArgb(60, 77, 101), AutoEllipsis = true
+    };
     private readonly Label device = new();
     private readonly Label status = new();
     private bool initialMouseChoiceLoaded;
@@ -75,18 +92,18 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M6.1 (NVIDIA安全強化・診断レポート)";
-        Size = new Size(1080, 740);
-        MinimumSize = new Size(780, 520);
+        Text = "PC Setup Copier — M7.0 (シンプル操作UI)";
+        Size = new Size(1180, 760);
+        MinimumSize = new Size(860, 560);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Yu Gothic UI", 10f);
         BackColor = Color.FromArgb(248, 250, 253);
-        var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 55,
+        var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 48,
             Font = new Font("Yu Gothic UI", 18f, FontStyle.Bold), Padding = new Padding(24, 12, 0, 0), ForeColor = Color.FromArgb(28, 43, 65) };
         var notice = new Label { Text = "ゲーム関連11項目を診断。対応する設定は適用対象トグルで選び、確認後にまとめて適用できます。",
-            Dock = DockStyle.Top, Height = 30, ForeColor = Color.FromArgb(78, 101, 130), Padding = new Padding(24, 3, 0, 0) };
+            Dock = DockStyle.Top, Height = 26, ForeColor = Color.FromArgb(78, 101, 130), Padding = new Padding(24, 3, 0, 0) };
         device.Dock = DockStyle.Top;
-        device.Height = 47;
+        device.Height = 38;
         device.Padding = new Padding(24, 4, 0, 0);
         device.ForeColor = Color.FromArgb(70, 82, 104);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(15, 3, 0, 0) };
@@ -106,7 +123,7 @@ internal sealed class MainForm : Form
         updateButton.AutoSize = true;
         updateButton.MinimumSize = new Size(130, 36);
         updateButton.Click += async (_, _) => await UpdateAsync();
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 53, Padding = new Padding(20, 5, 0, 0), BackColor = BackColor };
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(20, 5, 0, 0), BackColor = BackColor };
         AddAction(toolbar, "PCを診断", Scan);
         toolbar.Controls.Add(updateButton);
 
@@ -116,15 +133,35 @@ internal sealed class MainForm : Form
         diagnosticList.BorderStyle = BorderStyle.FixedSingle;
         diagnosticList.Font = new Font("Yu Gothic UI", 10f);
         diagnosticList.Columns.Add("設定", 225);
-        diagnosticList.Columns.Add("取得状況", 110);
-        diagnosticList.Columns.Add("現在値", 265);
-        diagnosticList.Columns.Add("説明", 480);
-        diagnosticList.Resize += (_, _) =>
-        {
-            int width = diagnosticList.ClientSize.Width;
-            if (width > 650) diagnosticList.Columns[3].Width = Math.Max(220, width - 625);
+        diagnosticList.Columns.Add("取得状況", 115);
+        diagnosticList.Columns.Add("現在値", 360);
+        diagnosticList.ShowItemToolTips = true;
+        diagnosticList.SelectedIndexChanged += (_, _) => {
+            if (diagnosticList.SelectedItems.Count != 0 &&
+                diagnosticList.SelectedItems[0].Tag is string description)
+                diagnosticDetail.Text = description;
         };
-        diagnosticPage.Controls.Add(diagnosticList);
+        diagnosticList.Resize += (_, _) => {
+            int available = diagnosticList.ClientSize.Width;
+            if (available > 500)
+                diagnosticList.Columns[2].Width = Math.Max(230, available - 355);
+        };
+        var diagnosticsLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
+        diagnosticsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+        diagnosticsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        diagnosticsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        diagnosticsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 86));
+        diagnosticsLayout.Controls.Add(diagnosticOverview, 0, 0);
+        var quickActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        AddAction(quickActions, "① プリセットを選ぶ", () => tabs.SelectedIndex = 2);
+        AddAction(quickActions, "② 自由設定を調整", () => tabs.SelectedIndex = 1);
+        AddAction(quickActions, "NVIDIA設定へ", () => tabs.SelectedIndex = 6);
+        diagnosticsLayout.Controls.Add(quickActions, 0, 1);
+        diagnosticsLayout.Controls.Add(diagnosticList, 0, 2);
+        diagnosticDetail.BackColor = Color.White;
+        diagnosticDetail.Text = "設定項目を選ぶと説明がここに表示されます。変更は「自由設定」または「NVIDIAグローバル」から行います。";
+        diagnosticsLayout.Controls.Add(diagnosticDetail, 0, 3);
+        diagnosticPage.Controls.Add(diagnosticsLayout);
 
         var freePage = new TabPage("自由設定") { BackColor = Color.FromArgb(248, 250, 253) };
         var freeRoot = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
@@ -432,7 +469,13 @@ internal sealed class MainForm : Form
         status.ForeColor = Color.FromArgb(79, 94, 115);
         status.BackColor = Color.FromArgb(240, 244, 249);
         status.Padding = new Padding(20, 5, 0, 0);
-        Controls.Add(tabs);
+        var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 202));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        workspace.Controls.Add(navigation, 0, 0);
+        workspace.Controls.Add(tabs, 1, 0);
+        BuildNavigation();
+        Controls.Add(workspace);
         Controls.Add(status);
         Controls.Add(toolbar);
         Controls.Add(device);
@@ -442,6 +485,65 @@ internal sealed class MainForm : Form
         RefreshPresetChoices();
         UpdateBatchSummary();
         ResizeCards();
+    }
+
+    private void BuildNavigation()
+    {
+        string[] labels = [
+            "ダッシュボード", "Windows自由設定", "プリセット", "ゲーム・モニター",
+            "ゲーム設定のヒント", "NVIDIAガイド", "NVIDIAグローバル",
+            "診断レポート", "PCからコピー", "バックアップ・復元"
+        ];
+        string? lastGroup = null;
+        for (int i = 0; i < tabs.TabPages.Count; i++)
+        {
+            string group = i switch {
+                0 => "ホーム", 1 or 2 => "Windows設定",
+                3 or 4 => "ゲーム環境", 5 or 6 => "NVIDIA",
+                _ => "ツール・管理"
+            };
+            if (lastGroup != group)
+            {
+                navigation.Controls.Add(new Label {
+                    Text = group, Width = 174, Height = 30, ForeColor = Color.FromArgb(151, 172, 201),
+                    Font = new Font("Yu Gothic UI", 9f, FontStyle.Bold),
+                    Margin = new Padding(8, 12, 0, 0)
+                });
+                lastGroup = group;
+            }
+            int target = i;
+            var button = new Button {
+                Text = labels[i], Width = 180, Height = 42,
+                TextAlign = ContentAlignment.MiddleLeft,
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.White,
+                BackColor = Color.FromArgb(31, 44, 67),
+                Padding = new Padding(9, 0, 0, 0),
+                Margin = new Padding(0, 1, 0, 1)
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.Click += (_, _) => tabs.SelectedIndex = target;
+            navigationButtons.Add(button);
+            navigation.Controls.Add(button);
+        }
+        tabs.SelectedIndexChanged += (_, _) => HighlightNavigation();
+        HighlightNavigation();
+        navigation.SizeChanged += (_, _) => {
+            int width = Math.Max(135, navigation.ClientSize.Width -
+                navigation.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 5);
+            foreach (var button in navigationButtons) button.Width = width;
+        };
+    }
+
+    private void HighlightNavigation()
+    {
+        for (int i = 0; i < navigationButtons.Count; i++)
+        {
+            bool active = tabs.SelectedIndex == i;
+            navigationButtons[i].BackColor = active
+                ? Color.FromArgb(44, 100, 177) : Color.FromArgb(31, 44, 67);
+            navigationButtons[i].Font = new Font("Yu Gothic UI", 10f,
+                active ? FontStyle.Bold : FontStyle.Regular);
+        }
     }
 
     private static void AddAction(FlowLayoutPanel panel, string label, Action action)
@@ -507,13 +609,19 @@ internal sealed class MainForm : Form
                 var row = new ListViewItem(item.DisplayName);
                 row.SubItems.Add(item.Status);
                 row.SubItems.Add(item.Value ?? "—");
-                row.SubItems.Add(item.Description);
+                row.Tag = item.Description;
                 row.ToolTipText = item.Description;
                 if (item.Status != "取得済み") row.ForeColor = Color.DimGray;
                 diagnosticList.Items.Add(row);
             }
         }
         finally { diagnosticList.EndUpdate(); }
+        int ready = current.Settings.Count(x => x.Status == "取得済み");
+        int partial = current.Settings.Count(x => x.Status == "一部取得");
+        diagnosticOverview.Text = "このPCのゲーム環境\n" +
+            "診断項目 " + current.Settings.Count + "件   /   取得済み " + ready +
+            "件   /   一部取得 " + partial + "件\n" +
+            "まずプリセットを選んでから、自由設定で必要な項目だけ変更できます。";
         RefreshPowerPlan();
         RefreshGameMode();
         RefreshCapture();
