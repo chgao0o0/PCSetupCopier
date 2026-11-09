@@ -205,6 +205,12 @@ internal static class NvidiaGlobalDrs
                 throw new InvalidDataException("NVIDIA設定値が不正です。");
             var state = con.Read(setting);
             if (state.Value == value) continue;
+            // An unrecognized override cannot be recreated safely after a failed apply.
+            // Never alter it until the driver-specific value can be validated.
+            if (state.IsExplicit && (state.Value is not uint previous ||
+                !setting.Options.Any(x => x.Value == previous)))
+                throw new NotSupportedException(setting.Title +
+                    "に未知の既存設定値があります。安全な復元ができないため変更しません。");
             result.Add(new Change(key, state.Value, value, state.IsExplicit));
         }
         return result;
@@ -235,20 +241,28 @@ internal static class NvidiaGlobalDrs
             DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + ".json");
         File.WriteAllText(archive, json);
         File.WriteAllText(LatestBackup, json);
-        bool committed = false;
+        bool saveAttempted = false;
         try
         {
             foreach (var item in changes)
                 con.Set(Settings.Single(x => x.Key == item.Key), item.After);
+            saveAttempted = true;
             con.Save();
-            committed = true;
         }
-        catch
+        catch (Exception failure)
         {
-            // Before a successful SaveSettings the DRS session is not committed.
-            // In case of a partial save, attempt to restore the recorded values.
-            if (committed) TryRollback(changes);
-            throw;
+            // A failing SaveSettings is not proof that *nothing* was written.
+            // If the driver save was attempted, restore the captured values.
+            if (!saveAttempted) throw;
+            try { TryRollback(changes); }
+            catch (Exception rollback) {
+                throw new AggregateException(
+                    "NVIDIAの保存と自動復元に失敗しました。バックアップを確認してください。",
+                    failure, rollback);
+            }
+            throw new InvalidOperationException(
+                "NVIDIA設定の保存失敗後、元の値への復元を試みました: " + failure.Message,
+                failure);
         }
         try
         {
@@ -278,6 +292,15 @@ internal static class NvidiaGlobalDrs
                 con.Delete(item);
         }
         con.Save();
+        using var checkedConnection = new Connection();
+        foreach (var change in changes)
+        {
+            var actual = checkedConnection.Read(Settings.Single(x => x.Key == change.Key));
+            if (change.BeforeExplicit &&
+                (actual.Value != change.Before || !actual.IsExplicit))
+                throw new InvalidOperationException(
+                    "NVIDIA設定の復元後に読み取り値が一致しません: " + change.Key);
+        }
     }
 
     internal static string Restore()
@@ -287,7 +310,9 @@ internal static class NvidiaGlobalDrs
             throw new InvalidDataException("NVIDIAバックアップのサイズが不正です。");
         var backup = JsonSerializer.Deserialize<Backup>(File.ReadAllText(LatestBackup))
             ?? throw new InvalidDataException("NVIDIAバックアップの形式が不正です。");
-        if (backup.Changes.Count is < 1 or > 4) throw new InvalidDataException("復元データが不正です。");
+        if (backup.Changes.Count is < 1 or > 4 ||
+            backup.Changes.Select(x => x.Key).Distinct().Count() != backup.Changes.Count)
+            throw new InvalidDataException("復元データが不正です。");
         using var con = new Connection();
         foreach (var change in backup.Changes)
         {
@@ -301,6 +326,15 @@ internal static class NvidiaGlobalDrs
                 con.Delete(item);
         }
         con.Save();
+        using var verify = new Connection();
+        foreach (var change in backup.Changes)
+        {
+            var actual = verify.Read(Settings.Single(x => x.Key == change.Key));
+            if (change.BeforeExplicit &&
+                (actual.Value != change.Before || !actual.IsExplicit))
+                throw new InvalidOperationException(
+                    "復元後の読み取り検証に失敗しました: " + change.Key);
+        }
         return backup.Changes.Count + "件のNVIDIAグローバル設定を元に戻しました。";
     }
 
