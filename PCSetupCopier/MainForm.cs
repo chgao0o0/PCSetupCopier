@@ -6,7 +6,15 @@ namespace PCSetupCopier;
 internal sealed class MainForm : Form
 {
     private readonly DataGridView grid = new();
-    private readonly RichTextBox diagnosticText = new();
+    private readonly ListView diagnosticList = new()
+    {
+        Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+        MultiSelect = false, GridLines = true, HideSelection = false
+    };
+    private readonly TextBox presetName = new() { Width = 220, MaxLength = 40 };
+    private readonly ComboBox presetChoices = new() { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Button presetLoad = new() { Text = "選択内容を読み込む", AutoSize = true };
+    private readonly Button presetDelete = new() { Text = "削除", AutoSize = true };
     private readonly Label freeCurrent = new();
     private readonly RadioButton mouseOff = new() { Text = "オフ", AutoSize = true, Checked = true };
     private readonly RadioButton mouseOn = new() { Text = "オン", AutoSize = true };
@@ -23,7 +31,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.3 (診断・自由設定・コピー・復元)";
+        Text = "PC Setup Copier — M2.4 (診断・自由設定・プリセット)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -57,11 +65,16 @@ internal sealed class MainForm : Form
         toolbar.Controls.Add(updateButton);
 
         var diagnosticPage = new TabPage("診断");
-        diagnosticText.Dock = DockStyle.Fill;
-        diagnosticText.ReadOnly = true;
-        diagnosticText.BackColor = Color.White;
-        diagnosticText.Font = new Font("Yu Gothic UI", 11f);
-        diagnosticPage.Controls.Add(diagnosticText);
+        diagnosticList.Columns.Add("設定", 225);
+        diagnosticList.Columns.Add("取得状況", 110);
+        diagnosticList.Columns.Add("現在値", 265);
+        diagnosticList.Columns.Add("説明", 480);
+        diagnosticList.Resize += (_, _) =>
+        {
+            int width = diagnosticList.ClientSize.Width;
+            if (width > 650) diagnosticList.Columns[3].Width = Math.Max(220, width - 625);
+        };
+        diagnosticPage.Controls.Add(diagnosticList);
 
         var freePage = new TabPage("自由設定");
         var freeLayout = new FlowLayoutPanel {
@@ -80,6 +93,26 @@ internal sealed class MainForm : Form
         freeApplyButton.Margin = new Padding(0, 18, 0, 10);
         freeApplyButton.Click += (_, _) => ApplyFreeMouse();
         freeLayout.Controls.Add(freeApplyButton);
+        freeLayout.Controls.Add(new Label { Text = "プリセット", AutoSize = true,
+            Font = new Font("Yu Gothic UI", 14f, FontStyle.Bold),
+            Margin = new Padding(0, 22, 0, 8) });
+        freeLayout.Controls.Add(new Label { Text = "名前を付けて現在選択中のON/OFFを保存できます。",
+            AutoSize = true });
+        var saveRow = new FlowLayoutPanel { Width = 590, Height = 43, FlowDirection = FlowDirection.LeftToRight };
+        saveRow.Controls.Add(presetName);
+        var savePreset = new Button { Text = "保存", AutoSize = true, MinimumSize = new Size(90, 32) };
+        savePreset.Click += (_, _) => SavePreset();
+        saveRow.Controls.Add(savePreset);
+        freeLayout.Controls.Add(saveRow);
+        var loadRow = new FlowLayoutPanel { Width = 660, Height = 43, FlowDirection = FlowDirection.LeftToRight };
+        loadRow.Controls.Add(presetChoices);
+        presetLoad.Click += (_, _) => LoadPreset();
+        presetDelete.Click += (_, _) => DeletePreset();
+        loadRow.Controls.Add(presetLoad);
+        loadRow.Controls.Add(presetDelete);
+        freeLayout.Controls.Add(loadRow);
+        freeLayout.Controls.Add(new Label { Text = "読み込みだけではWindowsの設定は変わりません。適用ボタンで確認後に変更します。",
+            AutoSize = true, ForeColor = Color.DimGray });
         freeLayout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(780, 0),
             Text = "他の10項目は安全な適用・復元方法が実装されるまで診断・比較専用です。",
             ForeColor = Color.DimGray });
@@ -153,6 +186,7 @@ internal sealed class MainForm : Form
         Controls.Add(notice);
         Controls.Add(title);
         Scan();
+        RefreshPresetChoices();
     }
 
     private static void AddAction(FlowLayoutPanel panel, string label, Action action)
@@ -209,10 +243,22 @@ internal sealed class MainForm : Form
     private void RefreshDiagnostic()
     {
         if (current == null) return;
-        var lines = current.Settings.Select(item =>
-            $"{item.DisplayName}  [{item.Status}]\n{item.Value ?? "—"}\n{item.Description}\n");
-        diagnosticText.Text = $"PC: {current.ComputerName}\nOS: {current.OsDescription}\n\n" +
-            string.Join("\n", lines);
+        diagnosticList.BeginUpdate();
+        try
+        {
+            diagnosticList.Items.Clear();
+            foreach (var item in current.Settings)
+            {
+                var row = new ListViewItem(item.DisplayName);
+                row.SubItems.Add(item.Status);
+                row.SubItems.Add(item.Value ?? "—");
+                row.SubItems.Add(item.Description);
+                row.ToolTipText = item.Description;
+                if (item.Status != "取得済み") row.ForeColor = Color.DimGray;
+                diagnosticList.Items.Add(row);
+            }
+        }
+        finally { diagnosticList.EndUpdate(); }
         try
         {
             int[] mouse = SettingsApplier.Read();
@@ -258,6 +304,87 @@ internal sealed class MainForm : Form
         {
             Scan();
             MessageBox.Show(this, ex.Message, "設定失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RefreshPresetChoices(string? chosen = null)
+    {
+        try
+        {
+            string? previous = chosen ?? presetChoices.SelectedItem as string;
+            presetChoices.Items.Clear();
+            foreach (var item in PresetStore.Load()) presetChoices.Items.Add(item.Name);
+            if (previous != null && presetChoices.Items.Contains(previous))
+                presetChoices.SelectedItem = previous;
+            else if (presetChoices.Items.Count > 0) presetChoices.SelectedIndex = 0;
+            presetLoad.Enabled = presetChoices.SelectedItem != null;
+            presetDelete.Enabled = presetChoices.SelectedItem != null;
+        }
+        catch (Exception ex)
+        {
+            presetLoad.Enabled = false;
+            presetDelete.Enabled = false;
+            MessageBox.Show(this, "プリセット読み込み失敗: " + ex.Message,
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void SavePreset()
+    {
+        try
+        {
+            string name = presetName.Text.Trim();
+            var existing = PresetStore.Load().FirstOrDefault(x =>
+                string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null && MessageBox.Show(this,
+                $"「{existing.Name}」を上書きしますか？", "プリセット保存",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            PresetStore.Save(name, mouseOn.Checked);
+            RefreshPresetChoices(name);
+            MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセット保存失敗: " + ex.Message,
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void LoadPreset()
+    {
+        if (presetChoices.SelectedItem is not string name) return;
+        try
+        {
+            var preset = PresetStore.Load().FirstOrDefault(x => x.Name == name)
+                ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
+            mouseOn.Checked = preset.MouseAcceleration;
+            mouseOff.Checked = !preset.MouseAcceleration;
+            presetName.Text = preset.Name;
+            MessageBox.Show(this, "選択内容を読み込みました。Windows設定はまだ変更していません。",
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセット読み込み失敗: " + ex.Message,
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void DeletePreset()
+    {
+        if (presetChoices.SelectedItem is not string name) return;
+        if (MessageBox.Show(this, $"「{name}」を削除しますか？",
+            "プリセット削除", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            PresetStore.Delete(name);
+            RefreshPresetChoices();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセット削除失敗: " + ex.Message,
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
