@@ -79,6 +79,8 @@ internal sealed class NvidiaGlobalPage : UserControl
         var loadLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
         loadLine.Controls.Add(templates);
         AddButton(loadLine, "自作設定を読み込む", LoadTemplate);
+        AddButton(loadLine, "JSON書き出し", ExportTemplate);
+        AddButton(loadLine, "JSON取り込み", ImportTemplate);
         loadLine.Controls.Add(new Label {
             Text = "読み込みだけではNVIDIA設定を変更しません。",
             ForeColor = Color.DimGray, AutoSize = true,
@@ -269,6 +271,39 @@ internal sealed class NvidiaGlobalPage : UserControl
             status.Text = "「" + name + "」を希望値に読み込みました。ドライバーは未変更です。";
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "読込失敗"); }
+    }
+
+    private void ExportTemplate()
+    {
+        try
+        {
+            string name = templates.SelectedItem as string
+                ?? throw new InvalidOperationException("書き出すプリセットを選択してください。");
+            using var save = new SaveFileDialog {
+                Filter = "NVIDIAプリセット (*.json)|*.json",
+                FileName = name + ".json", DefaultExt = "json", OverwritePrompt = true
+            };
+            if (save.ShowDialog(this) != DialogResult.OK) return;
+            NvidiaProfileStore.Export(name, save.FileName);
+            status.Text = "自作NVIDIAプリセットを書き出しました。ドライバーは変更していません。";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "書き出し失敗"); }
+    }
+
+    private void ImportTemplate()
+    {
+        try
+        {
+            using var open = new OpenFileDialog {
+                Filter = "NVIDIAプリセット (*.json)|*.json", CheckFileExists = true
+            };
+            if (open.ShowDialog(this) != DialogResult.OK) return;
+            string name = NvidiaProfileStore.Import(open.FileName);
+            RefreshTemplates();
+            templates.SelectedItem = name;
+            status.Text = "「" + name + "」を登録しました。読み込みボタンで希望値にセットできます。";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "取り込み失敗"); }
     }
 
     private void ApplyDriver()
