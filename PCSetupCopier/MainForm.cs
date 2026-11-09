@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M5.0 (ゲーム自動検出・Hz設定・最適化チェック)";
+        Text = "PC Setup Copier — M5.1 (ランチャー横断ゲーム検索・Hz設定)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
