@@ -87,6 +87,35 @@ internal static class PresetStore
         Commit(list);
     }
 
+    internal static void Export(string name, string destination)
+    {
+        var preset = Load().FirstOrDefault(x =>
+            string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
+            ?? throw new FileNotFoundException("選択したプリセットが見つかりません。");
+        if (!destination.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("JSON形式で書き出してください。");
+        File.WriteAllText(destination, JsonSerializer.Serialize(preset, JsonOptions));
+    }
+
+    internal static string Import(string source)
+    {
+        if (new FileInfo(source).Length is < 2 or > 50_000)
+            throw new InvalidDataException("プリセットファイルのサイズが不正です。");
+        var item = JsonSerializer.Deserialize<UserPreset>(File.ReadAllText(source))
+            ?? throw new InvalidDataException("プリセットファイルの形式が不正です。");
+        ValidateName(item.Name);
+        if (item.PowerPlanId == Guid.Empty || item.ComputerName?.Length > 255 ||
+            item.SavedAt == default)
+            throw new InvalidDataException("プリセットの内容が不正です。");
+        var list = Load().ToList();
+        if (list.Any(x => string.Equals(x.Name, item.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("同名のプリセットが既にあります。名前を変えてから読み込んでください。");
+        if (list.Count >= 100) throw new InvalidOperationException("プリセットは100件まで保存できます。");
+        list.Add(item);
+        Commit(list);
+        return item.Name;
+    }
+
     private static void Commit(List<UserPreset> presets)
     {
         Directory.CreateDirectory(Folder);
