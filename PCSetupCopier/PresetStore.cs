@@ -7,7 +7,9 @@ namespace PCSetupCopier;
 internal sealed record UserPreset(
     string Name, bool MouseAcceleration, DateTimeOffset SavedAt,
     bool? IncludeMouse = null, bool? IncludePower = null,
-    Guid? PowerPlanId = null, string? ComputerName = null);
+    Guid? PowerPlanId = null, string? ComputerName = null,
+    bool? IncludeGameMode = null, bool? GameModeDesired = null,
+    bool? IncludeCapture = null, bool? CaptureDesired = null);
 
 internal static class PresetStore
 {
@@ -49,7 +51,9 @@ internal static class PresetStore
 
     internal static void Save(
         string name, bool mouseAcceleration, bool includeMouse,
-        bool includePower, Guid? powerPlanId, string? computerName)
+        bool includePower, Guid? powerPlanId, string? computerName,
+        bool includeGameMode = false, bool gameModeDesired = false,
+        bool includeCapture = false, bool captureDesired = false)
     {
         if (includePower && (powerPlanId == null || powerPlanId == Guid.Empty ||
             string.IsNullOrWhiteSpace(computerName)))
@@ -61,7 +65,8 @@ internal static class PresetStore
         var list = Load().ToList();
         int existing = list.FindIndex(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
         var entry = new UserPreset(name, mouseAcceleration, DateTimeOffset.Now,
-            includeMouse, includePower, powerPlanId, computerName);
+            includeMouse, includePower, powerPlanId, computerName,
+            includeGameMode, gameModeDesired, includeCapture, captureDesired);
         if (existing >= 0) list[existing] = entry;
         else
         {
@@ -106,14 +111,16 @@ internal static class PresetStore
             try { ValidateName("../invalid"); return false; }
             catch (ArgumentException) { }
             var sample = new UserPreset("Gaming", false, DateTimeOffset.UnixEpoch,
-                true, true, Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e"), "Test-PC");
+                true, true, Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e"), "Test-PC",
+                true, true, false, false);
             if (JsonSerializer.Deserialize<UserPreset>(JsonSerializer.Serialize(sample)) != sample)
                 return false;
             // Old mouse-only presets must remain loadable and never auto-select power.
             const string legacy = "{\"Name\":\"Old\",\"MouseAcceleration\":true,\"SavedAt\":\"2025-01-01T00:00:00+00:00\"}";
             var old = JsonSerializer.Deserialize<UserPreset>(legacy);
             return old?.MouseAcceleration == true && old.IncludeMouse == null &&
-                   old.IncludePower == null && old.PowerPlanId == null;
+                   old.IncludePower == null && old.PowerPlanId == null &&
+                   old.IncludeGameMode == null && old.IncludeCapture == null;
         }
         catch { return false; }
     }
