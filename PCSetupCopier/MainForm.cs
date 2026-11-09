@@ -6,6 +6,12 @@ namespace PCSetupCopier;
 internal sealed class MainForm : Form
 {
     private readonly DataGridView grid = new();
+    private readonly RichTextBox diagnosticText = new();
+    private readonly Label freeCurrent = new();
+    private readonly RadioButton mouseOff = new() { Text = "オフ", AutoSize = true, Checked = true };
+    private readonly RadioButton mouseOn = new() { Text = "オン", AutoSize = true };
+    private readonly Button freeApplyButton = new() { Text = "マウス加速を適用", AutoSize = true, MinimumSize = new Size(190, 38) };
+    private readonly TabControl tabs = new() { Dock = DockStyle.Fill };
     private readonly Label device = new();
     private readonly Label status = new();
     private PcSnapshot? current;
@@ -17,7 +23,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.2 (診断・比較・共通設定基盤)";
+        Text = "PC Setup Copier — M2.3 (診断・自由設定・コピー・復元)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -30,28 +36,80 @@ internal sealed class MainForm : Form
         device.Height = 52;
         device.Padding = new Padding(20, 4, 0, 0);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(15, 3, 0, 0) };
-        AddAction(actions, "PCを診断", Scan);
         AddAction(actions, "JSONを書き出し", Export);
         AddAction(actions, "コピー元JSONを選ぶ", Import);
         AddAction(actions, "すべて選択", () => SelectRows(true));
         AddAction(actions, "選択解除", () => SelectRows(false));
-        updateButton.Text = "更新を確認";
-        updateButton.AutoSize = true;
-        updateButton.MinimumSize = new Size(130, 36);
-        updateButton.Click += async (_, _) => await UpdateAsync();
-        actions.Controls.Add(updateButton);
         applyButton.Text = "選択項目を適用";
         applyButton.AutoSize = true;
         applyButton.MinimumSize = new Size(135, 36);
         applyButton.Click += (_, _) => ApplySelected();
         actions.Controls.Add(applyButton);
+        actions.WrapContents = true;
+        actions.Height = 58;
+
+        updateButton.Text = "更新を確認";
+        updateButton.AutoSize = true;
+        updateButton.MinimumSize = new Size(130, 36);
+        updateButton.Click += async (_, _) => await UpdateAsync();
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 49, Padding = new Padding(15, 2, 0, 0) };
+        AddAction(toolbar, "PCを診断", Scan);
+        toolbar.Controls.Add(updateButton);
+
+        var diagnosticPage = new TabPage("診断");
+        diagnosticText.Dock = DockStyle.Fill;
+        diagnosticText.ReadOnly = true;
+        diagnosticText.BackColor = Color.White;
+        diagnosticText.Font = new Font("Yu Gothic UI", 11f);
+        diagnosticPage.Controls.Add(diagnosticText);
+
+        var freePage = new TabPage("自由設定");
+        var freeLayout = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
+            WrapContents = false, AutoScroll = true, Padding = new Padding(22, 18, 15, 15)
+        };
+        freeLayout.Controls.Add(new Label { Text = "マウス加速", AutoSize = true,
+            Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
+        freeLayout.Controls.Add(new Label { Text = "Windows 10/11対応。現在値のバックアップと適用後の検証を行います。",
+            AutoSize = true, Padding = new Padding(0, 5, 0, 14) });
+        freeCurrent.AutoSize = true;
+        freeCurrent.Padding = new Padding(0, 0, 0, 12);
+        freeLayout.Controls.Add(freeCurrent);
+        freeLayout.Controls.Add(mouseOff);
+        freeLayout.Controls.Add(mouseOn);
+        freeApplyButton.Margin = new Padding(0, 18, 0, 10);
+        freeApplyButton.Click += (_, _) => ApplyFreeMouse();
+        freeLayout.Controls.Add(freeApplyButton);
+        freeLayout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(780, 0),
+            Text = "他の10項目は安全な適用・復元方法が実装されるまで診断・比較専用です。",
+            ForeColor = Color.DimGray });
+        freePage.Controls.Add(freeLayout);
+
+        var copyPage = new TabPage("PCからコピー");
+        var copyContent = new Panel { Dock = DockStyle.Fill };
+        copyContent.Controls.Add(grid);
+        copyContent.Controls.Add(actions);
+        copyPage.Controls.Add(copyContent);
+
+        var backupPage = new TabPage("バックアップ・復元");
+        var backupLayout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
+            WrapContents = false, AutoScroll = true, Padding = new Padding(22, 22, 10, 10) };
+        backupLayout.Controls.Add(new Label { Text = "マウス設定の復元", AutoSize = true,
+            Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
+        backupLayout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(780, 0),
+            Text = "変更直前の状態に戻します。バックアップは復元後も保持されます。",
+            Padding = new Padding(0, 10, 0, 14) });
         restoreButton.Text = "マウス設定を復元";
         restoreButton.AutoSize = true;
-        restoreButton.MinimumSize = new Size(155, 36);
+        restoreButton.MinimumSize = new Size(200, 38);
         restoreButton.Click += (_, _) => RestoreMouse();
-        actions.Controls.Add(restoreButton);
-        actions.WrapContents = true;
-        actions.Height = 94;
+        backupLayout.Controls.Add(restoreButton);
+        backupPage.Controls.Add(backupLayout);
+
+        tabs.TabPages.Add(diagnosticPage);
+        tabs.TabPages.Add(freePage);
+        tabs.TabPages.Add(copyPage);
+        tabs.TabPages.Add(backupPage);
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -88,9 +146,9 @@ internal sealed class MainForm : Form
         status.Dock = DockStyle.Bottom;
         status.Height = 36;
         status.Padding = new Padding(20, 5, 0, 0);
-        Controls.Add(grid);
+        Controls.Add(tabs);
         Controls.Add(status);
-        Controls.Add(actions);
+        Controls.Add(toolbar);
         Controls.Add(device);
         Controls.Add(notice);
         Controls.Add(title);
@@ -139,11 +197,65 @@ internal sealed class MainForm : Form
                 string.Join(" / ", current.Displays.Select(d => $"{d.Bounds} @ {d.RefreshRateHz ?? "?"}Hz"));
             device.Text = $"PC: {current.ComputerName}    OS: {current.OsDescription}\n画面: {screens}";
             RefreshGrid();
+            RefreshDiagnostic();
         }
         catch (Exception ex)
         {
             current = null;
             MessageBox.Show("診断失敗: " + ex.Message);
+        }
+    }
+
+    private void RefreshDiagnostic()
+    {
+        if (current == null) return;
+        var lines = current.Settings.Select(item =>
+            $"{item.DisplayName}  [{item.Status}]\n{item.Value ?? "—"}\n{item.Description}\n");
+        diagnosticText.Text = $"PC: {current.ComputerName}\nOS: {current.OsDescription}\n\n" +
+            string.Join("\n", lines);
+        try
+        {
+            int[] mouse = SettingsApplier.Read();
+            freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "オフ" : "オン")}  / Threshold1={mouse[0]} / Threshold2={mouse[1]} / Accel={mouse[2]}";
+            freeApplyButton.Enabled = SettingEngine.Capability("mouse_acceleration").Supported;
+        }
+        catch (Exception ex)
+        {
+            freeCurrent.Text = "マウス設定の取得失敗: " + ex.Message;
+            freeApplyButton.Enabled = false;
+        }
+    }
+
+    private void ApplyFreeMouse()
+    {
+        if (current == null) { MessageBox.Show(this, "先に診断してください。"); return; }
+        try
+        {
+            int[] previous = SettingsApplier.Read();
+            int[] desired = [previous[0], previous[1], mouseOn.Checked ? 1 : 0];
+            var choice = new SettingResult("mouse_acceleration", "Gaming", "マウス加速",
+                $"Threshold1={desired[0]} / Threshold2={desired[1]} / Accel={desired[2]}",
+                "取得済み", "自由設定");
+            PcSnapshot snapshot = current with { Settings = [choice] };
+            SettingPlan plan = SettingEngine.BuildPlan(snapshot, ["mouse_acceleration"]);
+            if (!plan.CanApply)
+            {
+                MessageBox.Show(this, plan.Blocked.Count > 0 ? string.Join("\n", plan.Blocked) :
+                    "すでに指定された設定です。", "設定確認");
+                return;
+            }
+            var change = plan.Changes[0];
+            if (MessageBox.Show(this,
+                $"マウス加速を変更します。\n\n現在: {change.CurrentValue}\n変更後: {change.TargetValue}\n\n変更前の値を保存して続けますか？",
+                "自由設定の適用", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            string result = SettingEngine.Apply(plan);
+            Scan();
+            MessageBox.Show(this, result, "設定完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, ex.Message, "設定失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
