@@ -23,7 +23,7 @@ internal static class SettingsCollector
             Unknown("vrr", "可変リフレッシュレート（VRR）", "モニター・GPU・Windows側の対応を分けて確認する必要があります。", "未対応"),
             PerAppGpu()
         };
-        return new PcSnapshot("1.3", DateTimeOffset.Now, "M4.0", Environment.MachineName,
+        return new PcSnapshot("1.3", DateTimeOffset.Now, "M4.1", Environment.MachineName,
             RuntimeInformation.OSDescription, RuntimeInformation.OSArchitecture.ToString(),
             Environment.ProcessorCount, screens, values);
     }
