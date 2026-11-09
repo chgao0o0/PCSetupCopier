@@ -247,7 +247,7 @@ internal sealed class MainForm : Form
             AutoSize = true, Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold),
             Margin = new Padding(0, 16, 0, 9) });
         var builtins = new FlowLayoutPanel {
-            Width = 760, Height = 50, WrapContents = false,
+            Width = 760, Height = 102, WrapContents = true,
             FlowDirection = FlowDirection.LeftToRight
         };
         foreach (var profile in BuiltInGamingProfiles.All)
