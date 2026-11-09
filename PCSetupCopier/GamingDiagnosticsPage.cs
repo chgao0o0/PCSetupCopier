@@ -67,7 +67,7 @@ internal sealed class GamingDiagnosticsPage : UserControl
             var buffer = new StringBuilder();
             buffer.AppendLine("PC Setup Copier / ゲーミング診断レポート");
             buffer.AppendLine("診断日時: " + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
-            buffer.AppendLine("アプリ版: " + snapshot.AppVersion);
+            buffer.AppendLine("アプリ版: " + snapshot.ToolVersion);
             buffer.AppendLine();
             buffer.AppendLine("【Windowsとゲーム関連設定】");
             foreach (var item in snapshot.Settings)
