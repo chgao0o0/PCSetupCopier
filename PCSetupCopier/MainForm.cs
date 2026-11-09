@@ -217,6 +217,8 @@ internal sealed class MainForm : Form
         {
             int[] mouse = SettingsApplier.Read();
             freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "オフ" : "オン")}  / Threshold1={mouse[0]} / Threshold2={mouse[1]} / Accel={mouse[2]}";
+            mouseOn.Checked = mouse[2] != 0;
+            mouseOff.Checked = mouse[2] == 0;
             freeApplyButton.Enabled = SettingEngine.Capability("mouse_acceleration").Supported;
         }
         catch (Exception ex)
@@ -232,7 +234,7 @@ internal sealed class MainForm : Form
         try
         {
             int[] previous = SettingsApplier.Read();
-            int[] desired = [previous[0], previous[1], mouseOn.Checked ? 1 : 0];
+            int[] desired = mouseOn.Checked ? [6, 10, 1] : [0, 0, 0];
             var choice = new SettingResult("mouse_acceleration", "Gaming", "マウス加速",
                 $"Threshold1={desired[0]} / Threshold2={desired[1]} / Accel={desired[2]}",
                 "取得済み", "自由設定");
