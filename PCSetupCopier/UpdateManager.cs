@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -18,24 +19,25 @@ internal static class UpdateManager
         if (!File.Exists(installedMarker))
             throw new InvalidOperationException("開発用起動では更新できません。GitHub Actionsから入手した配布版で実行してください。");
 
-        var installed = JsonDocument.Parse(await File.ReadAllTextAsync(installedMarker, cancellationToken));
+        using var elapsed = new UpdateStopwatch(progress);
+        using var installed = JsonDocument.Parse(await File.ReadAllTextAsync(installedMarker, cancellationToken));
         var oldSha = installed.RootElement.GetProperty("commit").GetString() ?? "";
-        progress.Report("GitHubの認証状態を確認しています…");
-        await GhAsync(["auth", "status", "-h", "github.com"], cancellationToken);
 
-        progress.Report("最新版のビルドを確認しています…");
-        string json = await GhAsync(
+        // Independent GitHub requests are run concurrently. The GitHub CLI reports
+        // authentication errors itself; a separate "gh auth status" is redundant.
+        elapsed.Report("GitHubで最新版を確認しています…");
+        Task<string> runsTask = GhAsync(
             ["run", "list", "-R", Repository, "--workflow", "build-windows.yml",
              "--branch", "main", "--status", "success", "--limit", "1",
              "--json", "databaseId,headSha"], cancellationToken);
-        using var runs = JsonDocument.Parse(json);
+        Task<string> branchTask = GhAsync(
+            ["api", "repos/chgao0o0/PCSetupCopier/commits/main", "--jq", ".sha"],
+            cancellationToken);
+        await Task.WhenAll(runsTask, branchTask);
+        using var runs = JsonDocument.Parse(await runsTask);
         if (runs.RootElement.GetArrayLength() == 0)
             throw new InvalidOperationException("成功済みのWindowsビルドが見つかりません。");
-
-        // A successful workflow from an older commit is not necessarily the latest release.
-        string branchSha = (await GhAsync(
-            ["api", "repos/chgao0o0/PCSetupCopier/commits/main", "--jq", ".sha"],
-            cancellationToken)).Trim();
+        string branchSha = (await branchTask).Trim();
         if (branchSha.Length != 40 || !branchSha.All(Uri.IsHexDigit))
             throw new InvalidDataException("mainのコミットIDを取得できませんでした。");
 
@@ -59,7 +61,7 @@ internal static class UpdateManager
         Directory.CreateDirectory(stage);
         try
         {
-            progress.Report("Windows版をダウンロードしています…");
+            elapsed.Report("更新パッケージをダウンロードしています…");
             await GhAsync(["run", "download", runId.ToString(), "-R", Repository,
                 "-n", Artifact, "-D", stage], cancellationToken);
 
@@ -87,9 +89,10 @@ internal static class UpdateManager
             if (!string.Equals(stagedSha, latestSha, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("ビルドとコミットIDが一致しません。");
 
-            progress.Report("新しいアプリを事前検証しています…");
+            elapsed.Report("更新パッケージを検証しています…");
             await PreflightAsync(stagedExe, cancellationToken);
             // Execute the staged app itself as a standalone helper; Unicode paths are passed as separate arguments.
+            elapsed.Report("旧アプリを終了し、更新を適用します…");
             LaunchSwap(stage);
             return "更新ファイルを取得しました。アプリを終了して更新します。";
         }
@@ -98,6 +101,16 @@ internal static class UpdateManager
             try { Directory.Delete(stage, true); } catch { }
             throw;
         }
+    }
+
+    private sealed class UpdateStopwatch : IDisposable
+    {
+        private readonly Stopwatch stopwatch = Stopwatch.StartNew();
+        private readonly IProgress<string> progress;
+        internal UpdateStopwatch(IProgress<string> progress) => this.progress = progress;
+        internal void Report(string message) =>
+            progress.Report($"[{stopwatch.Elapsed.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}秒] {message}");
+        public void Dispose() => stopwatch.Stop();
     }
 
     private static async Task<string> GhAsync(string[] args, CancellationToken ct)
