@@ -100,6 +100,24 @@ internal static class SettingEngine
             new ReadOnlySettingHandler("per_app_gpu", "ゲーム別GPU指定")
         }.ToDictionary(x => x.Id, StringComparer.Ordinal);
 
+    internal static bool ValidateSafetyContract()
+    {
+        // Dry-run registry audit. No Windows settings are changed.
+        if (Handlers.Count != 11 || Handlers.Values.Count(
+            x => x.GetCapability().Access == SettingAccess.ApplyAndRestore) != 1)
+            return false;
+        if (Handlers["mouse_acceleration"] is not MouseSettingHandler) return false;
+        foreach (var item in Handlers.Values)
+        {
+            if (item.Id == "mouse_acceleration") continue;
+            if (item.GetCapability().Access != SettingAccess.ReadOnly || item.CanRestore)
+                return false;
+        }
+        return !Capability("windows_defender").Supported &&
+               !Capability("firewall").Supported &&
+               !Capability("uac").Supported;
+    }
+
     public static SettingCapability Capability(string id) =>
         Handlers.TryGetValue(id, out var handler)
             ? handler.GetCapability()
