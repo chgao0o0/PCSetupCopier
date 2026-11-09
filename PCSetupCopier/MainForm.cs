@@ -307,6 +307,16 @@ internal sealed class MainForm : Form
         loadRow.Controls.Add(presetLoad);
         loadRow.Controls.Add(presetDelete);
         presetContent.Controls.Add(loadRow);
+        var transferRow = new FlowLayoutPanel { Width = 760, Height = 48, WrapContents = true };
+        var exportPreset = new Button { Text = "選択したプリセットを書き出す",
+            AutoSize = true, Height = 35 };
+        exportPreset.Click += (_, _) => ExportPersonalPreset();
+        transferRow.Controls.Add(exportPreset);
+        var importPreset = new Button { Text = "プリセットJSONを読み込む",
+            AutoSize = true, Height = 35 };
+        importPreset.Click += (_, _) => ImportPersonalPreset();
+        transferRow.Controls.Add(importPreset);
+        presetContent.Controls.Add(transferRow);
         presetContent.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(680, 0),
             Text = "読み込みではWindows設定は変更されません。別PCに存在しない電源プランは適用対象から外します。自由設定で内容を確認して一括適用してください。",
             ForeColor = Color.DimGray });
@@ -1105,6 +1115,51 @@ internal sealed class MainForm : Form
         {
             MessageBox.Show(this, "プリセット読み込み失敗: " + ex.Message,
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ExportPersonalPreset()
+    {
+        if (presetChoices.SelectedItem is not string name) return;
+        try
+        {
+            using var dialog = new SaveFileDialog {
+                Filter = "設定プリセット (*.json)|*.json",
+                FileName = name + ".json", DefaultExt = "json",
+                OverwritePrompt = true
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            PresetStore.Export(name, dialog.FileName);
+            MessageBox.Show(this, "プリセットをJSONに保存しました。Windows設定は変更していません。",
+                "書き出し", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセット書き出し失敗: " + ex.Message,
+                "書き出し", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ImportPersonalPreset()
+    {
+        try
+        {
+            using var dialog = new OpenFileDialog {
+                Filter = "設定プリセット (*.json)|*.json", CheckFileExists = true
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            string name = PresetStore.Import(dialog.FileName);
+            RefreshPresetChoices(name);
+            MessageBox.Show(this,
+                "「" + name + "」を読み込みました。\n" +
+                "まだWindows設定は変更していません。プリセットを選択して読み込んでから、自由設定で適用対象を確認してください。\n" +
+                "別PCに存在しない電源プランは適用対象にしません。",
+                "プリセット取り込み", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセット取り込み失敗: " + ex.Message,
+                "取り込み", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
