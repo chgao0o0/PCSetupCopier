@@ -26,8 +26,8 @@ internal sealed class MainForm : Form
     private readonly ComboBox powerChoices = new() { Width = 420, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button powerApplyButton = new() { Text = "電源プランを適用", AutoSize = true };
     private readonly Button powerRestoreButton = new() { Text = "電源プランを復元", AutoSize = true };
-    private readonly RadioButton mouseOff = new() { Text = "オフ", AutoSize = true, Checked = true };
-    private readonly RadioButton mouseOn = new() { Text = "オン", AutoSize = true };
+    private readonly SettingToggle mouseToggle = new();
+
     private readonly Button freeApplyButton = new() { Text = "マウス加速を適用", AutoSize = true, MinimumSize = new Size(190, 38) };
     private readonly TabControl tabs = new() { Dock = DockStyle.Fill };
     private readonly Label device = new();
@@ -41,7 +41,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.8 (診断・自由設定・一括適用)";
+        Text = "PC Setup Copier — M2.9 (診断・スイッチ設定・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -76,7 +76,11 @@ internal sealed class MainForm : Form
         AddAction(toolbar, "PCを診断", Scan);
         toolbar.Controls.Add(updateButton);
 
-        var diagnosticPage = new TabPage("診断") { BackColor = Color.White, Padding = new Padding(8) };
+        var diagnosticPage = new TabPage("診断") { BackColor = Color.FromArgb(248, 250, 253), Padding = new Padding(14) };
+        diagnosticList.BackColor = Color.White;
+        diagnosticList.ForeColor = Color.FromArgb(35, 48, 67);
+        diagnosticList.BorderStyle = BorderStyle.FixedSingle;
+        diagnosticList.Font = new Font("Yu Gothic UI", 10f);
         diagnosticList.Columns.Add("設定", 225);
         diagnosticList.Columns.Add("取得状況", 110);
         diagnosticList.Columns.Add("現在値", 265);
@@ -94,17 +98,13 @@ internal sealed class MainForm : Form
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
 
-        mouseCard.Selected.Checked = true;
-        mouseOff.Text = "加速オフ";
-        mouseOn.Text = "加速オン";
-        mouseOff.Margin = new Padding(0, 4, 15, 0);
-        mouseOn.Margin = new Padding(0, 4, 0, 0);
-        mouseCard.Editor.Controls.Add(mouseOff);
-        mouseCard.Editor.Controls.Add(mouseOn);
+        // Switch changes the desired value only; Windows is not modified until Apply.
+        mouseToggle.Margin = new Padding(5, 0, 0, 0);
+        mouseCard.Editor.Controls.Add(mouseToggle);
+        mouseToggle.Changed += (_, _) => UpdateBatchSummary();
 
         cardList.Controls.Add(mouseCard);
 
-        powerCard.Selected.Checked = true;
         powerCard.Height = 132;
         powerChoices.Width = 258;
         powerChoices.Margin = new Padding(0, 1, 0, 0);
@@ -123,10 +123,6 @@ internal sealed class MainForm : Form
         cardList.SizeChanged += (_, _) => ResizeCards();
         cardList.BackColor = Color.FromArgb(248, 250, 253);
         cardList.Padding = new Padding(18, 16, 18, 12);
-        mouseCard.Selected.CheckedChanged += (_, _) => UpdateBatchSummary();
-        powerCard.Selected.CheckedChanged += (_, _) => UpdateBatchSummary();
-        mouseOn.CheckedChanged += (_, _) => UpdateBatchSummary();
-        mouseOff.CheckedChanged += (_, _) => UpdateBatchSummary();
         powerChoices.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
 
         var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
@@ -150,10 +146,10 @@ internal sealed class MainForm : Form
         freeRoot.Controls.Add(footer, 0, 1);
         freePage.Controls.Add(freeRoot);
 
-        var presetPage = new TabPage("プリセット");
+        var presetPage = new TabPage("プリセット") { BackColor = Color.FromArgb(248, 250, 253) };
         var presetContent = new FlowLayoutPanel {
             Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
-            WrapContents = false, AutoScroll = true, Padding = new Padding(24, 22, 12, 12)
+            WrapContents = false, AutoScroll = true, Padding = new Padding(28, 24, 12, 12), BackColor = Color.FromArgb(248, 250, 253)
         };
         presetContent.Controls.Add(new Label { Text = "設定プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
@@ -177,13 +173,13 @@ internal sealed class MainForm : Form
             ForeColor = Color.DimGray });
         presetPage.Controls.Add(presetContent);
 
-        var copyPage = new TabPage("PCからコピー");
-        var copyContent = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        var copyPage = new TabPage("PCからコピー") { BackColor = Color.FromArgb(248, 250, 253) };
+        var copyContent = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10), BackColor = Color.White };
         copyContent.Controls.Add(grid);
         copyContent.Controls.Add(actions);
         copyPage.Controls.Add(copyContent);
 
-        var backupPage = new TabPage("バックアップ・復元");
+        var backupPage = new TabPage("バックアップ・復元") { BackColor = Color.FromArgb(248, 250, 253) };
         var backupLayout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
             WrapContents = false, AutoScroll = true, Padding = new Padding(22, 22, 10, 10) };
         backupLayout.Controls.Add(new Label { Text = "マウス設定の復元", AutoSize = true,
@@ -335,16 +331,16 @@ internal sealed class MainForm : Form
             int[] mouse = SettingsApplier.Read();
             freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "加速オフ" : "加速オン")}";
             mouseCard.Current.Text = freeCurrent.Text;
-            mouseOn.Checked = mouse[2] != 0;
-            mouseOff.Checked = mouse[2] == 0;
+            mouseToggle.Enabled = true;
+            mouseToggle.IsOn = mouse[2] != 0;
+            
             UpdateBatchSummary();
         }
         catch (Exception ex)
         {
             freeCurrent.Text = "マウス設定の取得失敗: " + ex.Message;
             mouseCard.Current.Text = freeCurrent.Text;
-            mouseCard.Selected.Enabled = false;
-            mouseCard.Selected.Checked = false;
+            mouseToggle.Enabled = false;
             UpdateBatchSummary();
         }
     }
@@ -364,14 +360,29 @@ internal sealed class MainForm : Form
 
     private void UpdateBatchSummary()
     {
-        var selected = new List<string>();
-        if (mouseCard.Selected.Checked) selected.Add("マウス加速");
-        if (powerCard.Selected.Checked) selected.Add("電源プラン");
-        applySummary.Text = selected.Count == 0
-            ? "変更対象は未選択です"
-            : $"選択中 {selected.Count}項目：{string.Join(" / ", selected)}";
-        batchApply.Enabled = selected.Count > 0 &&
-            (!powerCard.Selected.Checked || powerChoices.SelectedItem is PowerPlanManager.Plan);
+        bool mouseChanged = false;
+        bool powerChanged = false;
+        try
+        {
+            mouseChanged = mouseToggle.Enabled && (SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn;
+            powerChanged = powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
+                PowerPlanManager.ReadActive() != choice.Id;
+        }
+        catch
+        {
+            // Diagnostic collection may fail on restricted machines. Never enable apply.
+            batchApply.Enabled = false;
+            applySummary.Text = "現在値を確認できません。再診断してください。";
+            return;
+        }
+
+        var parts = new List<string>();
+        if (mouseChanged) parts.Add("マウス加速");
+        if (powerChanged) parts.Add("電源プラン");
+        applySummary.Text = parts.Count == 0
+            ? "変更はありません"
+            : $"変更予定 {parts.Count}項目：{string.Join(" / ", parts)}";
+        batchApply.Enabled = parts.Count > 0;
     }
 
     private void RefreshPowerPlan()
@@ -450,41 +461,37 @@ internal sealed class MainForm : Form
 
     private void ApplyBatch()
     {
-        if (!mouseCard.Selected.Checked && !powerCard.Selected.Checked)
-        {
-            MessageBox.Show(this, "一括適用する項目を選択してください。", "設定確認");
-            return;
-        }
-        if (powerCard.Selected.Checked && powerChoices.SelectedItem is not PowerPlanManager.Plan)
-        {
-            MessageBox.Show(this, "電源プランを選択してください。", "設定確認");
-            return;
-        }
         try
         {
-            int[] desiredMouse = mouseOn.Checked ? [6, 10, 1] : [0, 0, 0];
-            Guid desiredPower = powerChoices.SelectedItem is PowerPlanManager.Plan planChoice
-                ? planChoice.Id : PowerPlanManager.ReadActive();
-            var plan = BatchSettingsApplier.Prepare(
-                mouseCard.Selected.Checked, desiredMouse, powerCard.Selected.Checked, desiredPower);
-            if (!plan.HasChanges)
+            bool mouseChanged = mouseToggle.Enabled &&
+                (SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn;
+            var selectedPower = powerChoices.SelectedItem as PowerPlanManager.Plan;
+            bool powerChanged = selectedPower != null &&
+                PowerPlanManager.ReadActive() != selectedPower.Id;
+            if (!mouseChanged && !powerChanged)
             {
-                MessageBox.Show(this, "選択項目はすでに指定した設定です。", "設定確認");
+                MessageBox.Show(this, "変更する設定はありません。", "設定確認");
                 return;
             }
-            var summary = new List<string>();
-            if (plan.ChangeMouse)
-                summary.Add($"マウス加速: Accel={plan.OriginalMouse[2]} → {plan.DesiredMouse[2]}");
-            if (plan.ChangePower)
-                summary.Add($"電源プラン: {plan.OriginalPower} → {plan.DesiredPower}");
-            var available = PowerPlanManager.Installed();
-            string? oldPower = available.FirstOrDefault(x => x.Id == plan.OriginalPower)?.Label;
-            string? newPower = available.FirstOrDefault(x => x.Id == plan.DesiredPower)?.Label;
+
+            int[] desiredMouse = mouseToggle.IsOn ? [6, 10, 1] : [0, 0, 0];
+            Guid desiredPower = selectedPower?.Id ?? PowerPlanManager.ReadActive();
+            var plan = BatchSettingsApplier.Prepare(
+                mouseChanged, desiredMouse, powerChanged, desiredPower);
+            var installed = powerChanged ? PowerPlanManager.Installed() : [];
+            string? oldPower = installed.FirstOrDefault(x => x.Id == plan.OriginalPower)?.Label;
+            string? newPower = installed.FirstOrDefault(x => x.Id == plan.DesiredPower)?.Label;
             using var dialog = new ApplyPreviewDialog(plan, oldPower, newPower);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
-            string result = BatchSettingsApplier.Apply(plan);
-            Scan();
-            MessageBox.Show(this, result, "一括適用", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            batchApply.Enabled = false;
+            try
+            {
+                string result = BatchSettingsApplier.Apply(plan);
+                Scan();
+                MessageBox.Show(this, result, "一括適用", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            finally { UpdateBatchSummary(); }
         }
         catch (Exception ex)
         {
@@ -578,9 +585,8 @@ internal sealed class MainForm : Form
             var preset = PresetStore.Load().FirstOrDefault(x => x.Name == name)
                 ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
             mouseOn.Checked = preset.MouseAcceleration;
-            mouseCard.Selected.Checked = true;
             tabs.SelectedIndex = 1;
-            mouseOff.Checked = !preset.MouseAcceleration;
+            
             presetName.Text = preset.Name;
             MessageBox.Show(this, "選択内容を読み込みました。Windows設定はまだ変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
