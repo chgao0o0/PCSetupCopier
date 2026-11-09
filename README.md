@@ -1,3 +1,14 @@
+## M4.1 — Gaming-PC GPU and multi-monitor workspace
+
+- New **ゲーム別GPU・モニター** tab for gaming PCs with multi-GPU, multi-display or hybrid graphics.
+- Detects each connected monitor's current resolution and reported refresh rate, plus refresh rates enumerated at its current resolution and bit depth. Results are diagnostic; mode switching is delegated to Windows Advanced Display Settings, avoiding automatic black-screen risks.
+- Choose up to 100 local game `.exe` files. The list persists only on the current PC and is not included in exported hardware snapshots.
+- Select up to 40 games per batch with explicit **適用** checkboxes. Each has a separate preference selector: Windows decides, power saving, or high performance. The UI displays existing preference and previews every change before writing.
+- Writes only the selected game's HKCU per-application GPU preference when its existing value has a recognized simple format. Unknown values and non-local exe paths are refused, not overwritten. Backups are archived and kept; read-back verification, automatic attempted rollback and manual last-batch restore are provided.
+- A GPU *preference* does not prove the runtime GPU used by the game: GPU hardware, drivers, app type and OS support matter. Restart the game after applying.
+- HAGS, VRR, refresh rate and other sensitive display settings remain read-only or Windows-settings-linked until safe cross-hardware validation and rollback mechanisms exist. No security setting is modified.
+- Windows package preflight checks pure GPU preference validation and serialization. Live multi-GPU/multi-monitor and registry apply/restore tests remain necessary on real gaming hardware.
+
 # PC Setup Copier
 
 ## M2.7 — Card-based free settings
