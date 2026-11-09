@@ -1,94 +1,84 @@
 namespace PCSetupCopier;
 
-// Compact native WinForms card. Controls are never recreated on resize.
+// Compact two-column card matching the settings mockup: explanation on the left,
+// changes on the right. All editing controls are persistent and never recreated.
 internal sealed class SettingCard : Panel
 {
-    private static readonly Color Ink = Color.FromArgb(30, 44, 64);
-    private static readonly Color Muted = Color.FromArgb(100, 113, 132);
-    private static readonly Color Edge = Color.FromArgb(222, 228, 236);
-    private readonly bool supported;
+    private static readonly Color Ink = Color.FromArgb(35, 48, 67);
+    private static readonly Color Muted = Color.FromArgb(106, 119, 136);
+    private static readonly Color Edge = Color.FromArgb(224, 231, 240);
     private readonly Label descriptionLabel;
-    private readonly Label nameLabel;
-    private readonly TableLayoutPanel content;
 
     internal CheckBox Selected { get; } = new()
     {
-        Text = "適用する", AutoSize = true, Checked = false,
-        ForeColor = Color.FromArgb(38, 82, 142), Anchor = AnchorStyles.Right
+        Text = "変更する", AutoSize = true, Checked = false,
+        ForeColor = Color.FromArgb(37, 89, 153),
+        Anchor = AnchorStyles.Right
     };
     internal Label Current { get; } = new()
     {
-        AutoSize = false, Dock = DockStyle.Fill,
-        ForeColor = Color.FromArgb(68, 85, 111),
-        AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft
+        AutoEllipsis = true, Dock = DockStyle.Fill,
+        ForeColor = Color.FromArgb(63, 86, 119),
+        TextAlign = ContentAlignment.MiddleLeft
     };
     internal FlowLayoutPanel Editor { get; } = new()
     {
         Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight,
         WrapContents = false, AutoScroll = false,
-        Margin = new Padding(0, 3, 0, 0)
+        Margin = new Padding(0, 2, 0, 0),
+        Padding = Padding.Empty
     };
 
     internal SettingCard(string name, string description, bool supported)
     {
-        this.supported = supported;
         BackColor = supported ? Color.White : Color.FromArgb(246, 248, 251);
-        BorderStyle = BorderStyle.None;
-        Height = supported ? 160 : 96;
-        Width = 840;
-        Margin = new Padding(4, 4, 4, 10);
-        Padding = new Padding(17, 10, 17, 9);
+        Height = supported ? 132 : 88;
+        Width = 760;
+        Margin = new Padding(5, 5, 5, 10);
+        Padding = new Padding(18, 10, 18, 10);
 
-        content = new TableLayoutPanel
+        var content = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1,
-            RowCount = supported ? 4 : 2,
-            BackColor = BackColor,
-            Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = supported ? 3 : 2,
+            Margin = Padding.Empty, Padding = Padding.Empty,
+            BackColor = BackColor
         };
-        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        if (supported) content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
-        nameLabel = new Label
+        var title = new Label
         {
             Text = name, Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold),
-            ForeColor = Ink
+            TextAlign = ContentAlignment.MiddleLeft, ForeColor = Ink
         };
-        header.Controls.Add(nameLabel, 0, 0);
-        header.Controls.Add(Selected, 1, 0);
         descriptionLabel = new Label
         {
             Text = description, Dock = DockStyle.Fill,
+            Font = new Font("Yu Gothic UI", 9.2f),
             ForeColor = Muted, AutoEllipsis = true,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = new Font("Yu Gothic UI", 9f)
+            TextAlign = ContentAlignment.MiddleLeft
         };
-        content.Controls.Add(header, 0, 0);
+        content.Controls.Add(title, 0, 0);
         content.Controls.Add(descriptionLabel, 0, 1);
+        content.Controls.Add(Selected, 1, 0);
 
         if (supported)
         {
-            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
-            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             content.Controls.Add(Current, 0, 2);
-            content.Controls.Add(Editor, 0, 3);
+            content.Controls.Add(Editor, 1, 2);
         }
         else
         {
-            Selected.Checked = false;
+            Selected.Text = "未対応";
             Selected.Enabled = false;
-            Selected.Text = "準備中";
-            Selected.ForeColor = Muted;
+            Selected.Checked = false;
         }
         Controls.Add(content);
 
-        // Windows Forms classic borders are too visually prominent; draw a thin neutral edge.
         Paint += (_, e) =>
         {
             using var pen = new Pen(Edge);
@@ -98,6 +88,6 @@ internal sealed class SettingCard : Panel
 
     internal void SetCardWidth(int availableWidth)
     {
-        Width = Math.Clamp(availableWidth, 320, 900);
+        Width = Math.Clamp(availableWidth, 340, 800);
     }
 }
