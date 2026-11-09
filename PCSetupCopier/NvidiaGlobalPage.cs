@@ -104,7 +104,7 @@ internal sealed class NvidiaGlobalPage : UserControl
 
         foreach (var setting in NvidiaGlobalDrs.Settings)
         {
-            int idx = grid.Rows.Add(false, setting.Title, "未取得", setting.Options[0].Label);
+            int idx = grid.Rows.Add(false, setting.Title, "未取得", null);
             grid.Rows[idx].Tag = setting;
             var combo = new DataGridViewComboBoxCell();
             foreach (var option in setting.Options) combo.Items.Add(option.Label);
