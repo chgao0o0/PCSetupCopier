@@ -27,6 +27,7 @@ internal sealed class GamingHardwarePage : UserControl
         Text = "選択したHzに変更", AutoSize = true
     };
     private readonly Button restore = new() { Text = "前回のGPU設定を復元", AutoSize = true };
+    private bool _discovering;
     private readonly Label info = new() {
         Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
         ForeColor = Color.FromArgb(68, 88, 117), AutoEllipsis = true
@@ -260,11 +261,17 @@ internal sealed class GamingHardwarePage : UserControl
         }
     }
 
-    private void DiscoverGames()
+    private async void DiscoverGames()
     {
+        if (_discovering) return;
+        _discovering = true;
+        UseWaitCursor = true;
+        info.Text = "インストール情報・ゲームフォルダーを検索しています…";
         try
         {
-            var found = GameDiscovery.Find().Where(x => !games.Rows.Cast<DataGridViewRow>().Any(
+            var detected = await Task.Run(() => GameDiscovery.Find());
+            if (IsDisposed) return;
+            var found = detected.Where(x => !games.Rows.Cast<DataGridViewRow>().Any(
                 row => string.Equals(row.Cells["Path"].Value as string, x.Exe,
                     StringComparison.OrdinalIgnoreCase))).Take(300).ToArray();
             if (found.Length == 0)
@@ -336,8 +343,13 @@ internal sealed class GamingHardwarePage : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "ゲーム自動検出に失敗", MessageBoxButtons.OK,
+            if (!IsDisposed) MessageBox.Show(this, ex.Message, "ゲーム自動検出に失敗", MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _discovering = false;
+            if (!IsDisposed) UseWaitCursor = false;
         }
     }
 
