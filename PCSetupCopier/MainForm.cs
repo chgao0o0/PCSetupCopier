@@ -35,6 +35,15 @@ internal sealed class MainForm : Form
         Text = "バックグラウンド録画関連値を復元", AutoSize = true,
         MinimumSize = new Size(265, 38)
     };
+    private readonly SettingCard gameBarCaptureCard = new("Game Barキャプチャ（関連値）",
+        "Game Barの録画・スクリーンショットに関するユーザー設定値です。", true);
+    private readonly ComboBox gameBarCaptureDesired = new() {
+        Width = 175, DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly Button gameBarCaptureRestoreButton = new() {
+        Text = "Game Barキャプチャ関連値を復元", AutoSize = true,
+        MinimumSize = new Size(270, 38)
+    };
     private readonly Label applySummary = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly FlowLayoutPanel cardList = new() { Dock = DockStyle.Fill, AutoScroll = true,
         WrapContents = false, FlowDirection = FlowDirection.TopDown, Padding = new Padding(12, 12, 12, 12) };
@@ -158,6 +167,15 @@ internal sealed class MainForm : Form
         captureDesired.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
         cardList.Controls.Add(captureCard);
 
+        gameBarCaptureCard.ApplySwitch.AccessibleName = "Game Barキャプチャの関連値を一括適用する";
+        gameBarCaptureCard.ApplySwitch.IsOn = false;
+        gameBarCaptureDesired.Items.AddRange(["オフを指定", "オンを指定"]);
+        gameBarCaptureDesired.SelectedIndex = 1;
+        gameBarCaptureCard.Editor.Controls.Add(gameBarCaptureDesired);
+        gameBarCaptureCard.ApplySwitch.Changed += (_, _) => UpdateBatchSummary();
+        gameBarCaptureDesired.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
+        cardList.Controls.Add(gameBarCaptureCard);
+
         foreach (var info in new (string Name, string Reason)[] {
             ("GPUスケジューリング（HAGS）", "OSとGPUの対応状況を検証中です。") })
         {
@@ -275,6 +293,11 @@ internal sealed class MainForm : Form
             AutoSize = true, Margin = new Padding(0, 25, 0, 10) });
         captureRestoreButton.Click += (_, _) => RestoreCapture();
         backupLayout.Controls.Add(captureRestoreButton);
+        backupLayout.Controls.Add(new Label { Text = "Game Barキャプチャ関連値の復元",
+            Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold),
+            AutoSize = true, Margin = new Padding(0, 25, 0, 10) });
+        gameBarCaptureRestoreButton.Click += (_, _) => RestoreGameBarCapture();
+        backupLayout.Controls.Add(gameBarCaptureRestoreButton);
         backupPage.Controls.Add(backupLayout);
 
         tabs.TabPages.Add(diagnosticPage);
@@ -405,6 +428,7 @@ internal sealed class MainForm : Form
         RefreshPowerPlan();
         RefreshGameMode();
         RefreshCapture();
+        RefreshGameBarCapture();
         try
         {
             int[] mouse = SettingsApplier.Read();
@@ -496,6 +520,40 @@ internal sealed class MainForm : Form
         }
     }
 
+    private void RefreshGameBarCapture()
+    {
+        try
+        {
+            int? existing = GameBarCaptureManager.Read();
+            gameBarCaptureCard.Current.Text = existing == null
+                ? "現在の関連値: 未設定（既定状態は未確認）"
+                : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
+            gameBarCaptureCard.ApplySwitch.Enabled = true;
+        }
+        catch (Exception ex)
+        {
+            gameBarCaptureCard.Current.Text = "取得失敗: " + ex.Message;
+            gameBarCaptureCard.ApplySwitch.IsOn = false;
+            gameBarCaptureCard.ApplySwitch.Enabled = false;
+        }
+    }
+
+    private void RestoreGameBarCapture()
+    {
+        if (MessageBox.Show(this, "直前に保存したGame Barキャプチャ関連値に復元しますか？",
+            "復元確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            string result = GameBarCaptureManager.Restore();
+            Scan();
+            MessageBox.Show(this, result, "復元", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "復元失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     private void ResizeCards()
     {
         int width = Math.Max(330, cardList.ClientSize.Width - cardList.Padding.Horizontal - 28);
@@ -517,14 +575,16 @@ internal sealed class MainForm : Form
             bool powerSelected = powerCard.ApplySwitch.Enabled && powerCard.ApplySwitch.IsOn;
             bool gameSelected = gameModeCard.ApplySwitch.Enabled && gameModeCard.ApplySwitch.IsOn;
             bool captureSelected = captureCard.ApplySwitch.Enabled && captureCard.ApplySwitch.IsOn;
+            bool gameBarSelected = gameBarCaptureCard.ApplySwitch.Enabled && gameBarCaptureCard.ApplySwitch.IsOn;
             int[] mouse = SettingsApplier.Read();
             bool mouseDiff = mouseSelected && ((mouse[2] != 0) != (mouseDesired.SelectedIndex == 1));
             bool powerDiff = powerSelected && powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
                 PowerPlanManager.ReadActive() != choice.Id;
             bool gameDiff = gameSelected && GameModeManager.Read() != gameModeDesired.SelectedIndex;
             bool captureDiff = captureSelected && CapturePreferenceManager.Read() != captureDesired.SelectedIndex;
-            int selected = (mouseSelected ? 1 : 0) + (powerSelected ? 1 : 0) + (gameSelected ? 1 : 0) + (captureSelected ? 1 : 0);
-            int changes = (mouseDiff ? 1 : 0) + (powerDiff ? 1 : 0) + (gameDiff ? 1 : 0) + (captureDiff ? 1 : 0);
+            bool gameBarDiff = gameBarSelected && GameBarCaptureManager.Read() != gameBarCaptureDesired.SelectedIndex;
+            int selected = (mouseSelected ? 1 : 0) + (powerSelected ? 1 : 0) + (gameSelected ? 1 : 0) + (captureSelected ? 1 : 0) + (gameBarSelected ? 1 : 0);
+            int changes = (mouseDiff ? 1 : 0) + (powerDiff ? 1 : 0) + (gameDiff ? 1 : 0) + (captureDiff ? 1 : 0) + (gameBarDiff ? 1 : 0);
             applySummary.Text = selected == 0 ? "適用対象なし" :
                 $"適用対象 {selected}項目 / 変更予定 {changes}項目";
             batchApply.Enabled = changes > 0;
@@ -532,6 +592,7 @@ internal sealed class MainForm : Form
             powerChoices.Enabled = powerSelected;
             gameModeDesired.Enabled = gameSelected;
             captureDesired.Enabled = captureSelected;
+            gameBarCaptureDesired.Enabled = gameBarSelected;
         }
         catch
         {
@@ -622,7 +683,8 @@ internal sealed class MainForm : Form
             bool includePower = powerCard.ApplySwitch.IsOn && powerCard.ApplySwitch.Enabled;
             bool includeGameMode = gameModeCard.ApplySwitch.IsOn && gameModeCard.ApplySwitch.Enabled;
             bool includeCapture = captureCard.ApplySwitch.IsOn && captureCard.ApplySwitch.Enabled;
-            if (!includeMouse && !includePower && !includeGameMode && !includeCapture)
+            bool includeGameBar = gameBarCaptureCard.ApplySwitch.IsOn && gameBarCaptureCard.ApplySwitch.Enabled;
+            if (!includeMouse && !includePower && !includeGameMode && !includeCapture && !includeGameBar)
             {
                 MessageBox.Show(this, "適用対象を選んでください。", "一括適用");
                 return;
@@ -638,7 +700,8 @@ internal sealed class MainForm : Form
             BatchSettingsApplier.Plan plan = BatchSettingsApplier.Prepare(
                 includeMouse, desiredMouse, includePower, desiredPower,
                 includeGameMode, gameModeDesired.SelectedIndex == 1,
-                includeCapture, captureDesired.SelectedIndex == 1);
+                includeCapture, captureDesired.SelectedIndex == 1,
+                includeGameBar, gameBarCaptureDesired.SelectedIndex == 1);
             if (!plan.HasChanges)
             {
                 MessageBox.Show(this, "対象項目は現在の設定と同じです。", "一括適用");
@@ -867,6 +930,7 @@ internal sealed class MainForm : Form
         powerRestoreButton.Enabled = PowerPlanManager.CanRestore;
         gameModeRestoreButton.Enabled = GameModeManager.CanRestore;
         captureRestoreButton.Enabled = CapturePreferenceManager.CanRestore;
+        gameBarCaptureRestoreButton.Enabled = GameBarCaptureManager.CanRestore;
         status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（コピー適用: マウス加速 / 自由設定: マウス加速・電源）" +
             (source == null ? " / コピー元JSON未選択" : $" / コピー元: {source.ComputerName}") +
             " / その他の項目は読み取り・比較専用";
