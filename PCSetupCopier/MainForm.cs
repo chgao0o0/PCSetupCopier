@@ -26,7 +26,9 @@ internal sealed class MainForm : Form
     private readonly ComboBox powerChoices = new() { Width = 420, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button powerApplyButton = new() { Text = "電源プランを適用", AutoSize = true };
     private readonly Button powerRestoreButton = new() { Text = "電源プランを復元", AutoSize = true };
-    private readonly SettingToggle mouseToggle = new();
+    private readonly ComboBox mouseDesired = new() {
+        Width = 175, DropDownStyle = ComboBoxStyle.DropDownList
+    };
 
     private readonly Button freeApplyButton = new() { Text = "マウス加速を適用", AutoSize = true, MinimumSize = new Size(190, 38) };
     private readonly TabControl tabs = new() { Dock = DockStyle.Fill };
@@ -41,7 +43,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.9 (診断・スイッチ設定・一括適用)";
+        Text = "PC Setup Copier — M3.0 (診断・適用対象選択・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -98,10 +100,19 @@ internal sealed class MainForm : Form
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
 
-        // Switch changes the desired value only; Windows is not modified until Apply.
-        mouseToggle.Margin = new Padding(5, 0, 0, 0);
-        mouseCard.Editor.Controls.Add(mouseToggle);
-        mouseToggle.Changed += (_, _) => UpdateBatchSummary();
+        // The header switch selects whether this item participates in Apply.
+        // The editor below independently specifies its desired setting.
+        mouseCard.ApplySwitch.AccessibleName = "マウス加速を一括適用の対象にする";
+        powerCard.ApplySwitch.AccessibleName = "電源プランを一括適用の対象にする";
+        mouseCard.ApplySwitch.IsOn = true;
+        powerCard.ApplySwitch.IsOn = true;
+        mouseDesired.Items.AddRange(["加速オフ", "加速オン"]);
+        mouseDesired.SelectedIndex = 0;
+        mouseDesired.Margin = new Padding(0, 2, 0, 0);
+        mouseCard.Editor.Controls.Add(mouseDesired);
+        mouseDesired.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
+        mouseCard.ApplySwitch.Changed += (_, _) => UpdateBatchSummary();
+        powerCard.ApplySwitch.Changed += (_, _) => UpdateBatchSummary();
 
         cardList.Controls.Add(mouseCard);
 
@@ -331,8 +342,9 @@ internal sealed class MainForm : Form
             int[] mouse = SettingsApplier.Read();
             freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "加速オフ" : "加速オン")}";
             mouseCard.Current.Text = freeCurrent.Text;
-            mouseToggle.Enabled = true;
-            mouseToggle.IsOn = mouse[2] != 0;
+            mouseDesired.Enabled = true;
+            mouseDesired.SelectedIndex = mouse[2] != 0 ? 1 : 0;
+            mouseCard.ApplySwitch.Enabled = true;
             
             UpdateBatchSummary();
         }
@@ -340,7 +352,9 @@ internal sealed class MainForm : Form
         {
             freeCurrent.Text = "マウス設定の取得失敗: " + ex.Message;
             mouseCard.Current.Text = freeCurrent.Text;
-            mouseToggle.Enabled = false;
+            mouseDesired.Enabled = false;
+            mouseCard.ApplySwitch.IsOn = false;
+            mouseCard.ApplySwitch.Enabled = false;
             UpdateBatchSummary();
         }
     }
@@ -348,7 +362,7 @@ internal sealed class MainForm : Form
     private void ResizeCards()
     {
         int width = Math.Max(330, cardList.ClientSize.Width - cardList.Padding.Horizontal - 28);
-        int cardWidth = Math.Clamp(width, 340, 800);
+        int cardWidth = Math.Clamp(width, 340, cardList.ClientSize.Width >= 1200 ? 1050 : 800);
         int left = Math.Max(5, (cardList.ClientSize.Width - cardWidth - 12) / 2);
         foreach (Control card in cardList.Controls)
         {
@@ -360,29 +374,27 @@ internal sealed class MainForm : Form
 
     private void UpdateBatchSummary()
     {
-        bool mouseChanged = false;
-        bool powerChanged = false;
         try
         {
-            mouseChanged = mouseToggle.Enabled && ((SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn);
-            powerChanged = powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
+            bool mouseSelected = mouseCard.ApplySwitch.Enabled && mouseCard.ApplySwitch.IsOn;
+            bool powerSelected = powerCard.ApplySwitch.Enabled && powerCard.ApplySwitch.IsOn;
+            int[] mouse = SettingsApplier.Read();
+            bool mouseDiff = mouseSelected && ((mouse[2] != 0) != (mouseDesired.SelectedIndex == 1));
+            bool powerDiff = powerSelected && powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
                 PowerPlanManager.ReadActive() != choice.Id;
+            int selected = (mouseSelected ? 1 : 0) + (powerSelected ? 1 : 0);
+            int changes = (mouseDiff ? 1 : 0) + (powerDiff ? 1 : 0);
+            applySummary.Text = selected == 0 ? "適用対象なし" :
+                $"適用対象 {selected}項目 / 変更予定 {changes}項目";
+            batchApply.Enabled = changes > 0;
+            mouseDesired.Enabled = mouseSelected;
+            powerChoices.Enabled = powerSelected;
         }
         catch
         {
-            // Diagnostic collection may fail on restricted machines. Never enable apply.
             batchApply.Enabled = false;
             applySummary.Text = "現在値を確認できません。再診断してください。";
-            return;
         }
-
-        var parts = new List<string>();
-        if (mouseChanged) parts.Add("マウス加速");
-        if (powerChanged) parts.Add("電源プラン");
-        applySummary.Text = parts.Count == 0
-            ? "変更はありません"
-            : $"変更予定 {parts.Count}項目：{string.Join(" / ", parts)}";
-        batchApply.Enabled = parts.Count > 0;
     }
 
     private void RefreshPowerPlan()
@@ -463,24 +475,31 @@ internal sealed class MainForm : Form
     {
         try
         {
-            bool mouseChanged = mouseToggle.Enabled &&
-                ((SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn);
-            var selectedPower = powerChoices.SelectedItem as PowerPlanManager.Plan;
-            bool powerChanged = selectedPower != null &&
-                PowerPlanManager.ReadActive() != selectedPower.Id;
-            if (!mouseChanged && !powerChanged)
+            bool includeMouse = mouseCard.ApplySwitch.IsOn && mouseCard.ApplySwitch.Enabled;
+            bool includePower = powerCard.ApplySwitch.IsOn && powerCard.ApplySwitch.Enabled;
+            if (!includeMouse && !includePower)
             {
-                MessageBox.Show(this, "変更する設定はありません。", "設定確認");
+                MessageBox.Show(this, "適用対象を選んでください。", "一括適用");
                 return;
             }
-
-            int[] desiredMouse = mouseToggle.IsOn ? [6, 10, 1] : [0, 0, 0];
-            Guid desiredPower = selectedPower?.Id ?? PowerPlanManager.ReadActive();
-            var plan = BatchSettingsApplier.Prepare(
-                mouseChanged, desiredMouse, powerChanged, desiredPower);
-            var installed = powerChanged ? PowerPlanManager.Installed() : [];
-            string? oldPower = installed.FirstOrDefault(x => x.Id == plan.OriginalPower)?.Label;
-            string? newPower = installed.FirstOrDefault(x => x.Id == plan.DesiredPower)?.Label;
+            int[] currentMouse = SettingsApplier.Read();
+            bool desiredAcceleration = mouseDesired.SelectedIndex == 1;
+            // Preserve existing thresholds when the chosen acceleration state is unchanged.
+            int[] desiredMouse = (currentMouse[2] != 0) == desiredAcceleration
+                ? currentMouse
+                : desiredAcceleration ? [6, 10, 1] : [0, 0, 0];
+            Guid desiredPower = powerChoices.SelectedItem is PowerPlanManager.Plan selectedPower
+                ? selectedPower.Id : PowerPlanManager.ReadActive();
+            BatchSettingsApplier.Plan plan = BatchSettingsApplier.Prepare(
+                includeMouse, desiredMouse, includePower, desiredPower);
+            if (!plan.HasChanges)
+            {
+                MessageBox.Show(this, "対象項目は現在の設定と同じです。", "一括適用");
+                return;
+            }
+            var available = plan.ChangePower ? PowerPlanManager.Installed() : [];
+            string? oldPower = available.FirstOrDefault(x => x.Id == plan.OriginalPower)?.Label;
+            string? newPower = available.FirstOrDefault(x => x.Id == plan.DesiredPower)?.Label;
             using var dialog = new ApplyPreviewDialog(plan, oldPower, newPower);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
@@ -506,7 +525,7 @@ internal sealed class MainForm : Form
         try
         {
             int[] previous = SettingsApplier.Read();
-            int[] desired = mouseToggle.IsOn ? [6, 10, 1] : [0, 0, 0];
+            int[] desired = mouseDesired.SelectedIndex == 1 ? [6, 10, 1] : [0, 0, 0];
             var choice = new SettingResult("mouse_acceleration", "Gaming", "マウス加速",
                 $"Threshold1={desired[0]} / Threshold2={desired[1]} / Accel={desired[2]}",
                 "取得済み", "自由設定");
@@ -565,7 +584,7 @@ internal sealed class MainForm : Form
             if (existing != null && MessageBox.Show(this,
                 $"「{existing.Name}」を上書きしますか？", "プリセット保存",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            PresetStore.Save(name, mouseToggle.IsOn);
+            PresetStore.Save(name, mouseDesired.SelectedIndex == 1);
             RefreshPresetChoices(name);
             MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -584,7 +603,8 @@ internal sealed class MainForm : Form
         {
             var preset = PresetStore.Load().FirstOrDefault(x => x.Name == name)
                 ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
-            mouseToggle.IsOn = preset.MouseAcceleration;
+            mouseDesired.SelectedIndex = preset.MouseAcceleration ? 1 : 0;
+            mouseCard.ApplySwitch.IsOn = true;
             tabs.SelectedIndex = 1;
             
             presetName.Text = preset.Name;
