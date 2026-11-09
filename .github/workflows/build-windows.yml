@@ -34,8 +34,10 @@ jobs:
       - name: Run package preflight on Windows
         shell: pwsh
         run: |
-          & "./publish/PCSetupCopier.exe" --verify-package
-          if ($LASTEXITCODE -ne 0) { throw "Package preflight failed" }
+          $exe = (Resolve-Path "./publish/PCSetupCopier.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--verify-package" -WorkingDirectory (Resolve-Path "./publish").Path -Wait -PassThru
+          Write-Host "Package verifier exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "Package preflight failed with exit code $($p.ExitCode)" }
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
