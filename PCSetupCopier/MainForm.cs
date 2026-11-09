@@ -17,6 +17,15 @@ internal sealed class MainForm : Form
     private readonly Button presetDelete = new() { Text = "削除", AutoSize = true };
     private readonly SettingCard mouseCard = new("マウス加速", "Windowsのポインター加速をON/OFFします。", true);
     private readonly SettingCard powerCard = new("電源プラン", "このPCに登録されているプランだけを選べます。", true);
+    private readonly SettingCard gameModeCard = new("ゲームモード（関連値）",
+        "ユーザー設定値を変更します。Windowsの実効状態は未検証です。", true);
+    private readonly ComboBox gameModeDesired = new() {
+        Width = 175, DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly Button gameModeRestoreButton = new() {
+        Text = "ゲームモード関連値を復元", AutoSize = true,
+        MinimumSize = new Size(235, 38)
+    };
     private readonly Label applySummary = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly FlowLayoutPanel cardList = new() { Dock = DockStyle.Fill, AutoScroll = true,
         WrapContents = false, FlowDirection = FlowDirection.TopDown, Padding = new Padding(12, 12, 12, 12) };
@@ -43,7 +52,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M3.3 (プリセット拡張・一括適用)";
+        Text = "PC Setup Copier — M3.4 (ゲームモード設定・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -122,8 +131,16 @@ internal sealed class MainForm : Form
         powerCard.Editor.Controls.Add(powerChoices);
         cardList.Controls.Add(powerCard);
 
+        gameModeCard.ApplySwitch.AccessibleName = "ゲームモード関連値を一括適用の対象にする";
+        gameModeCard.ApplySwitch.IsOn = false;
+        gameModeDesired.Items.AddRange(["オフを指定", "オンを指定"]);
+        gameModeDesired.SelectedIndex = 1;
+        gameModeCard.Editor.Controls.Add(gameModeDesired);
+        gameModeCard.ApplySwitch.Changed += (_, _) => UpdateBatchSummary();
+        gameModeDesired.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
+        cardList.Controls.Add(gameModeCard);
+
         foreach (var info in new (string Name, string Reason)[] {
-            ("ゲームモード", "安全な変更方法を検証中です。"),
             ("GPUスケジューリング（HAGS）", "OSとGPUの対応状況を検証中です。"),
             ("バックグラウンド録画", "録画機能全体の実効状態を検証中です。") })
         {
@@ -231,6 +248,11 @@ internal sealed class MainForm : Form
         powerRestoreButton.MinimumSize = new Size(200, 38);
         powerRestoreButton.Click += (_, _) => RestorePowerPlan();
         backupLayout.Controls.Add(powerRestoreButton);
+        backupLayout.Controls.Add(new Label { Text = "ゲームモード関連値の復元",
+            Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold),
+            AutoSize = true, Margin = new Padding(0, 25, 0, 10) });
+        gameModeRestoreButton.Click += (_, _) => RestoreGameMode();
+        backupLayout.Controls.Add(gameModeRestoreButton);
         backupPage.Controls.Add(backupLayout);
 
         tabs.TabPages.Add(diagnosticPage);
@@ -359,6 +381,7 @@ internal sealed class MainForm : Form
         }
         finally { diagnosticList.EndUpdate(); }
         RefreshPowerPlan();
+        RefreshGameMode();
         try
         {
             int[] mouse = SettingsApplier.Read();
@@ -381,6 +404,42 @@ internal sealed class MainForm : Form
         }
     }
 
+    private void RefreshGameMode()
+    {
+        try
+        {
+            int? existing = GameModeManager.Read();
+            gameModeCard.Current.Text = existing == null
+                ? "現在の関連値: 未設定（既定状態は未確認）"
+                : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
+            gameModeDesired.SelectedIndex = existing == 0 ? 0 : 1;
+            gameModeCard.ApplySwitch.Enabled = true;
+            // Keep the choice explicitly opt-in, even on refresh.
+        }
+        catch (Exception ex)
+        {
+            gameModeCard.Current.Text = "取得失敗: " + ex.Message;
+            gameModeCard.ApplySwitch.IsOn = false;
+            gameModeCard.ApplySwitch.Enabled = false;
+        }
+    }
+
+    private void RestoreGameMode()
+    {
+        if (MessageBox.Show(this, "直前に保存したゲームモード関連値に復元しますか？",
+            "復元確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            string result = GameModeManager.Restore();
+            Scan();
+            MessageBox.Show(this, result, "復元", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "復元失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     private void ResizeCards()
     {
         int width = Math.Max(330, cardList.ClientSize.Width - cardList.Padding.Horizontal - 28);
@@ -400,17 +459,20 @@ internal sealed class MainForm : Form
         {
             bool mouseSelected = mouseCard.ApplySwitch.Enabled && mouseCard.ApplySwitch.IsOn;
             bool powerSelected = powerCard.ApplySwitch.Enabled && powerCard.ApplySwitch.IsOn;
+            bool gameSelected = gameModeCard.ApplySwitch.Enabled && gameModeCard.ApplySwitch.IsOn;
             int[] mouse = SettingsApplier.Read();
             bool mouseDiff = mouseSelected && ((mouse[2] != 0) != (mouseDesired.SelectedIndex == 1));
             bool powerDiff = powerSelected && powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
                 PowerPlanManager.ReadActive() != choice.Id;
-            int selected = (mouseSelected ? 1 : 0) + (powerSelected ? 1 : 0);
-            int changes = (mouseDiff ? 1 : 0) + (powerDiff ? 1 : 0);
+            bool gameDiff = gameSelected && GameModeManager.Read() != gameModeDesired.SelectedIndex;
+            int selected = (mouseSelected ? 1 : 0) + (powerSelected ? 1 : 0) + (gameSelected ? 1 : 0);
+            int changes = (mouseDiff ? 1 : 0) + (powerDiff ? 1 : 0) + (gameDiff ? 1 : 0);
             applySummary.Text = selected == 0 ? "適用対象なし" :
                 $"適用対象 {selected}項目 / 変更予定 {changes}項目";
             batchApply.Enabled = changes > 0;
             mouseDesired.Enabled = mouseSelected;
             powerChoices.Enabled = powerSelected;
+            gameModeDesired.Enabled = gameSelected;
         }
         catch
         {
@@ -499,7 +561,8 @@ internal sealed class MainForm : Form
         {
             bool includeMouse = mouseCard.ApplySwitch.IsOn && mouseCard.ApplySwitch.Enabled;
             bool includePower = powerCard.ApplySwitch.IsOn && powerCard.ApplySwitch.Enabled;
-            if (!includeMouse && !includePower)
+            bool includeGameMode = gameModeCard.ApplySwitch.IsOn && gameModeCard.ApplySwitch.Enabled;
+            if (!includeMouse && !includePower && !includeGameMode)
             {
                 MessageBox.Show(this, "適用対象を選んでください。", "一括適用");
                 return;
@@ -513,7 +576,8 @@ internal sealed class MainForm : Form
             Guid desiredPower = powerChoices.SelectedItem is PowerPlanManager.Plan selectedPower
                 ? selectedPower.Id : PowerPlanManager.ReadActive();
             BatchSettingsApplier.Plan plan = BatchSettingsApplier.Prepare(
-                includeMouse, desiredMouse, includePower, desiredPower);
+                includeMouse, desiredMouse, includePower, desiredPower,
+                includeGameMode, gameModeDesired.SelectedIndex == 1);
             if (!plan.HasChanges)
             {
                 MessageBox.Show(this, "対象項目は現在の設定と同じです。", "一括適用");
@@ -728,6 +792,7 @@ internal sealed class MainForm : Form
         applyButton.Enabled = plan.CanApply;
         restoreButton.Enabled = SettingEngine.CanRestore("mouse_acceleration");
         powerRestoreButton.Enabled = PowerPlanManager.CanRestore;
+        gameModeRestoreButton.Enabled = GameModeManager.CanRestore;
         status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（コピー適用: マウス加速 / 自由設定: マウス加速・電源）" +
             (source == null ? " / コピー元JSON未選択" : $" / コピー元: {source.ComputerName}") +
             " / その他の項目は読み取り・比較専用";
