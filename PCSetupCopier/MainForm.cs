@@ -238,7 +238,7 @@ internal sealed class MainForm : Form
         };
         presetContent.Controls.Add(new Label { Text = "設定プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
-        presetContent.Controls.Add(new Label { Text = "マウス加速・電源プラン・ゲームモード関連値・録画関連値と、各適用対象スイッチをセットで保存できます。",
+        presetContent.Controls.Add(new Label { Text = "マウス加速・電源プラン・ゲームモード・2種類の録画関連値と、各適用対象スイッチをセットで保存できます。",
             AutoSize = true, MaximumSize = new Size(680, 0), Margin = new Padding(0, 8, 0, 16) });
         var saveRow = new FlowLayoutPanel { Width = 560, Height = 50 };
         saveRow.Controls.Add(presetName);
@@ -800,7 +800,8 @@ internal sealed class MainForm : Form
                 mouseCard.ApplySwitch.IsOn, includePower,
                 chosenPower?.Id, Environment.MachineName,
                 gameModeCard.ApplySwitch.IsOn, gameModeDesired.SelectedIndex == 1,
-                captureCard.ApplySwitch.IsOn, captureDesired.SelectedIndex == 1);
+                captureCard.ApplySwitch.IsOn, captureDesired.SelectedIndex == 1,
+                gameBarCaptureCard.ApplySwitch.IsOn, gameBarCaptureDesired.SelectedIndex == 1);
             RefreshPresetChoices(name);
             MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -846,6 +847,12 @@ internal sealed class MainForm : Form
             {
                 captureDesired.SelectedIndex = preset.CaptureDesired == true ? 1 : 0;
                 captureCard.ApplySwitch.IsOn = preset.IncludeCapture.Value && captureCard.ApplySwitch.Enabled;
+            }
+            if (preset.IncludeGameBarCapture.HasValue)
+            {
+                gameBarCaptureDesired.SelectedIndex = preset.GameBarCaptureDesired == true ? 1 : 0;
+                gameBarCaptureCard.ApplySwitch.IsOn =
+                    preset.IncludeGameBarCapture.Value && gameBarCaptureCard.ApplySwitch.Enabled;
             }
             tabs.SelectedIndex = 1;
             presetName.Text = preset.Name;
