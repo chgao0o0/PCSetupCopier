@@ -1,3 +1,10 @@
+## M5.0 — Gaming PC discovery, refresh rate and settings review
+
+- **Steam + Epic game discovery**: reads local installation manifests and offers executable candidates. Explicit per-game confirmation is required; merely detecting/adding a game never writes a Windows setting. Ambiguous executable matches are left unchecked. Xbox/Game Pass installations and nonstandard launchers remain manual.
+- **Refresh-rate editor**: select a connected monitor and a supported frequency at its current resolution/bit depth. A Windows `CDS_TEST` preflight is run before a temporary switch. The user must visually confirm within **15 seconds** or the app attempts to restore the original frequency. Only after confirmation is the mode saved to the Windows user display configuration. On a process crash, system freeze, driver failure, or power loss the in-app timeout cannot guarantee restoration; change carefully and use Windows display settings if necessary. Modes are only integer Hz from the legacy Win32 API; fractional/VRR behavior may differ.
+- **Gaming optimization checklist**: competitive FPS, visual quality, and balanced profiles provide targeted guidance for refresh, Game Mode, HAGS, windowed-game optimizations, VRR, GPU preferences, capture, power, HDR and notifications. The panel reports only grounded current values, distinguishes missing registry preferences from effective Windows settings and links to native Settings pages. It never applies unverified registry tweaks or disables system security controls.
+- **Safety**: Existing GPU selection, snapshots, presets, and backup/rollback workflow are retained. No automatic power/HAGS/VRR/HDR/Windows Defender/Firewall/UAC/Update changes. Diagnostic checks and package build do not prove real-hardware apply/rollback on every monitor/driver configuration.
+
 ## M4.1 — Gaming-PC GPU and multi-monitor workspace
 
 - New **ゲーム別GPU・モニター** tab for gaming PCs with multi-GPU, multi-display or hybrid graphics.
