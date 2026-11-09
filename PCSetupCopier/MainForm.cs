@@ -15,6 +15,9 @@ internal sealed class MainForm : Form
     private readonly ComboBox presetChoices = new() { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button presetLoad = new() { Text = "選択内容を読み込む", AutoSize = true };
     private readonly Button presetDelete = new() { Text = "削除", AutoSize = true };
+    private readonly CheckBox batchMouse = new() { Text = "マウス加速を変更対象にする", AutoSize = true, Checked = true };
+    private readonly CheckBox batchPower = new() { Text = "電源プランを変更対象にする", AutoSize = true, Checked = true };
+    private readonly Button batchApply = new() { Text = "選択した設定を一括適用", AutoSize = true, MinimumSize = new Size(240, 42) };
     private readonly Label freeCurrent = new();
     private readonly Label powerCurrent = new() { AutoSize = true };
     private readonly ComboBox powerChoices = new() { Width = 420, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -35,14 +38,14 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.5 (診断・自由設定・電源プラン)";
+        Text = "PC Setup Copier — M2.6 (自由設定・一括適用・高速更新)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(760, 500);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Yu Gothic UI", 10f);
         var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 55,
             Font = new Font("Yu Gothic UI", 19f, FontStyle.Bold), Padding = new Padding(20, 10, 0, 0) };
-        var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速と電源プランを個別に適用・復元できます。",
+        var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速と電源プランを選択して一括適用できます。",
             Dock = DockStyle.Top, Height = 35, ForeColor = Color.DarkGreen, Padding = new Padding(20, 4, 0, 0) };
         device.Dock = DockStyle.Top;
         device.Height = 52;
@@ -94,9 +97,10 @@ internal sealed class MainForm : Form
         freeLayout.Controls.Add(freeCurrent);
         freeLayout.Controls.Add(mouseOff);
         freeLayout.Controls.Add(mouseOn);
+        freeLayout.Controls.Add(batchMouse);
         freeApplyButton.Margin = new Padding(0, 18, 0, 10);
         freeApplyButton.Click += (_, _) => ApplyFreeMouse();
-        freeLayout.Controls.Add(freeApplyButton);
+        freeApplyButton.Visible = false;
         freeLayout.Controls.Add(new Label { Text = "電源プラン", AutoSize = true,
             Font = new Font("Yu Gothic UI", 14f, FontStyle.Bold),
             Margin = new Padding(0, 22, 0, 8) });
@@ -107,9 +111,15 @@ internal sealed class MainForm : Form
         powerCurrent.Padding = new Padding(0, 8, 0, 10);
         freeLayout.Controls.Add(powerCurrent);
         freeLayout.Controls.Add(powerChoices);
+        freeLayout.Controls.Add(batchPower);
         powerApplyButton.Margin = new Padding(0, 10, 0, 10);
         powerApplyButton.Click += (_, _) => ApplyPowerPlan();
-        freeLayout.Controls.Add(powerApplyButton);
+        powerApplyButton.Visible = false;
+        batchApply.Margin = new Padding(0, 20, 0, 10);
+        batchApply.Click += (_, _) => ApplyBatch();
+        freeLayout.Controls.Add(batchApply);
+        freeLayout.Controls.Add(new Label { Text = "選択した項目を確認 → バックアップ → 一括適用 → 検証。失敗時は自動復元を試みます。",
+            AutoSize = true, MaximumSize = new Size(720, 0), ForeColor = Color.DimGray });
         freeLayout.Controls.Add(new Label { Text = "プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 14f, FontStyle.Bold),
             Margin = new Padding(0, 22, 0, 8) });
@@ -367,6 +377,51 @@ internal sealed class MainForm : Form
             Scan();
             MessageBox.Show(this, ex.Message, "電源プラン復元失敗",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ApplyBatch()
+    {
+        if (!batchMouse.Checked && !batchPower.Checked)
+        {
+            MessageBox.Show(this, "一括適用する項目を選択してください。", "設定確認");
+            return;
+        }
+        if (batchPower.Checked && powerChoices.SelectedItem is not PowerPlanManager.Plan)
+        {
+            MessageBox.Show(this, "電源プランを選択してください。", "設定確認");
+            return;
+        }
+        try
+        {
+            int[] desiredMouse = mouseOn.Checked ? [6, 10, 1] : [0, 0, 0];
+            Guid desiredPower = powerChoices.SelectedItem is PowerPlanManager.Plan planChoice
+                ? planChoice.Id : PowerPlanManager.ReadActive();
+            var plan = BatchSettingsApplier.Prepare(
+                batchMouse.Checked, desiredMouse, batchPower.Checked, desiredPower);
+            if (!plan.HasChanges)
+            {
+                MessageBox.Show(this, "選択項目はすでに指定した設定です。", "設定確認");
+                return;
+            }
+            var summary = new List<string>();
+            if (plan.ChangeMouse)
+                summary.Add($"マウス加速: Accel={plan.OriginalMouse[2]} → {plan.DesiredMouse[2]}");
+            if (plan.ChangePower)
+                summary.Add($"電源プラン: {plan.OriginalPower} → {plan.DesiredPower}");
+            if (MessageBox.Show(this,
+                "以下の変更を一括適用します。\\n\\n" + string.Join("\\n", summary) +
+                "\\n\\n変更前のバックアップを作成し、失敗時は復元を試みます。続けますか？",
+                "一括適用の確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+            string result = BatchSettingsApplier.Apply(plan);
+            Scan();
+            MessageBox.Show(this, result, "一括適用", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, ex.Message, "一括適用失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
