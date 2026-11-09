@@ -243,6 +243,34 @@ internal sealed class MainForm : Form
         };
         presetContent.Controls.Add(new Label { Text = "設定プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
+        presetContent.Controls.Add(new Label { Text = "おすすめプリセット（選ぶだけではWindowsを変更しません）",
+            AutoSize = true, Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold),
+            Margin = new Padding(0, 16, 0, 9) });
+        var builtins = new FlowLayoutPanel {
+            Width = 760, Height = 50, WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight
+        };
+        foreach (var profile in BuiltInGamingProfiles.All)
+        {
+            var preset = profile;
+            var button = new Button {
+                Text = preset.Title, AutoSize = true, Height = 37,
+                Margin = new Padding(0, 2, 7, 0)
+            };
+            button.Click += (_, _) => StageBuiltInProfile(preset);
+            builtins.Controls.Add(button);
+        }
+        presetContent.Controls.Add(builtins);
+        presetContent.Controls.Add(new Label {
+            Text = "FPS重視：録画関連値OFF・ゲームモードON・マウス加速OFFを候補に。電源は対応プランがある場合だけ選択します。\n" +
+                "画質・配信重視：録画関連値ONを候補に。NVIDIAの3D設定やゲーム内画質は直接変更しません。\n" +
+                "どのプリセットも適用対象をセットするだけ。自由設定で変更内容を確認してから一括適用してください。",
+            AutoSize = true, MaximumSize = new Size(760, 0),
+            ForeColor = Color.FromArgb(88, 103, 122),
+            Margin = new Padding(0, 3, 0, 18)
+        });
+        presetContent.Controls.Add(new Label { Text = "自分のプリセット",
+            AutoSize = true, Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold) });
         presetContent.Controls.Add(new Label { Text = "マウス加速・電源プラン・ゲームモード・2種類の録画関連値と、各適用対象スイッチをセットで保存できます。",
             AutoSize = true, MaximumSize = new Size(680, 0), Margin = new Padding(0, 8, 0, 16) });
         var saveRow = new FlowLayoutPanel { Width = 560, Height = 50 };
@@ -823,6 +851,73 @@ internal sealed class MainForm : Form
         }
     }
 
+    private void StageBuiltInProfile(BuiltInGamingProfiles.Profile preset)
+    {
+        // Stage UI values only; no calls to Apply, Windows registry, or powercfg.
+        var notes = new List<string>();
+        try
+        {
+            void Stage(SettingCard card, ComboBox editor, bool? desired)
+            {
+                if (!desired.HasValue)
+                {
+                    card.ApplySwitch.IsOn = false;
+                    return;
+                }
+                if (!card.ApplySwitch.Enabled)
+                {
+                    card.ApplySwitch.IsOn = false;
+                    notes.Add(card.Current.Text + " のため適用対象から除外しました。");
+                    return;
+                }
+                editor.SelectedIndex = desired.Value ? 1 : 0;
+                card.ApplySwitch.IsOn = true;
+            }
+            Stage(mouseCard, mouseDesired, preset.MouseAcceleration);
+            Stage(gameModeCard, gameModeDesired, preset.GameMode);
+            Stage(captureCard, captureDesired, preset.BackgroundCapture);
+            Stage(gameBarCaptureCard, gameBarCaptureDesired, preset.GameBarCapture);
+
+            powerCard.ApplySwitch.IsOn = false;
+            if (preset.Power != BuiltInGamingProfiles.PowerPreference.Keep)
+            {
+                var plans = powerChoices.Items.Cast<PowerPlanManager.Plan>().ToArray();
+                PowerPlanManager.Plan? picked = null;
+                if (preset.Power == BuiltInGamingProfiles.PowerPreference.PreferPerformance)
+                    picked = plans.FirstOrDefault(x => x.Id ==
+                        Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")) ??
+                        plans.FirstOrDefault(x => x.Id ==
+                            Guid.Parse("e9a42b02-d5df-448d-aa00-03f14749eb61"));
+                else
+                    picked = plans.FirstOrDefault(x => x.Id ==
+                        Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e"));
+                if (picked != null && powerCard.ApplySwitch.Enabled)
+                {
+                    powerChoices.SelectedItem = picked;
+                    powerCard.ApplySwitch.IsOn = true;
+                }
+                else
+                {
+                    notes.Add("指定した電源プランが見つからないため、電源プランは変更対象から外しました。");
+                }
+            }
+
+            UpdateBatchSummary();
+            tabs.SelectedIndex = 1;
+            MessageBox.Show(this,
+                "「" + preset.Title + "」の変更候補を自由設定に読み込みました。\n" +
+                preset.Explanation + "\n\nWindows設定はまだ変更されていません。\n" +
+                "変更する項目と希望値を確認して、一括適用ボタンを押してください。" +
+                (notes.Count == 0 ? "" : "\n\n" + string.Join("\n", notes)),
+                "プリセットを読み込みました", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "プリセットの準備に失敗: " + ex.Message,
+                "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     private void SavePreset()
     {
         try
@@ -899,7 +994,7 @@ internal sealed class MainForm : Form
             string note = preset.IncludePower == true && !powerAvailable
                 ? "保存時の電源プランがこのPCでは確認できないため、電源プランは適用対象から外しました。"
                 : "設定値と適用対象を読み込みました。";
-            MessageBox.Show(this, note + "\\nWindows設定はまだ変更していません。",
+            MessageBox.Show(this, note + "\nWindows設定はまだ変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
