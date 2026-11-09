@@ -21,7 +21,7 @@ internal sealed class SettingCard : Panel
     {
         BackColor = Color.White;
         BorderStyle = BorderStyle.FixedSingle;
-        Height = 184;
+        Height = 204;
         Width = 680;
         Margin = new Padding(4, 4, 4, 12);
         Padding = new Padding(14, 12, 14, 8);
@@ -32,6 +32,8 @@ internal sealed class SettingCard : Panel
             AutoScroll = false
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        for (int row = 0; row < 4; row++)
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var top = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill, WrapContents = false,
