@@ -1,5 +1,13 @@
 # PC Setup Copier
 
+## M2.3 — Free configuration and tabbed UI
+
+- Four pages: diagnosis, free configuration, import/copy from another PC, backup/restore.
+- Free configuration does **not require a JSON file**. It uses the same M2.2 capability-checked engine, confirmation screen, automatic backup, read-back verification and restore.
+- Current writable setting: mouse acceleration only. Windows mouse acceleration off is written as [0,0,0], on as [6,10,1] (Win32 SPI_SETMOUSE); Windows Settings should be checked during device testing.
+- The copy/import workflow remains available on its own page. All 10 other settings are diagnostic/comparison-only.
+- Future writes must be individually tested on supported Windows versions; the tool never modifies Defender, firewall, updates, SmartScreen, UAC, encryption or other security protections.
+
 ## M2.2 — Common setting engine (2026-11-09)
 
 The setting engine now registers all 11 existing gaming settings behind a common handler contract:
@@ -17,7 +25,7 @@ The target architecture is Windows 10 and 11 with explicit per-setting capabilit
 
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M2.2 (mouse acceleration apply only)
+## Current release: M2.3 (mouse acceleration apply only)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
