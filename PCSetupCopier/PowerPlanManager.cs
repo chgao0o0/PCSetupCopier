@@ -115,6 +115,14 @@ internal static class PowerPlanManager
         return "電源プランを変更し、再取得で確認しました。変更前のプランはバックアップ済みです。";
     }
 
+    // Used only for rollback within the same confirmed batch.
+    internal static void RestoreExact(Guid original)
+    {
+        if (!Installed().Any(x => x.Id == original))
+            throw new InvalidOperationException("元の電源プランを復元できません。");
+        Set(original);
+    }
+
     internal static string Restore()
     {
         if (!CanRestore) throw new FileNotFoundException("電源プランのバックアップがありません。");
