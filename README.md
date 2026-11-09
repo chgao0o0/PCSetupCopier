@@ -1,5 +1,13 @@
 # PC Setup Copier
 
+## M2.6 — Unified batch apply and update-check optimization
+
+- The Free Settings tab now has a single **選択した設定を一括適用** button and explicit selection checkboxes for mouse acceleration and local installed power plans. Individual apply actions are hidden; the user confirms a combined change preview once.
+- Both settings are read before applying. The batch handler backs up each changed setting, verifies results, and attempts to restore the original in-memory values if any step fails. Existing per-setting backup history and manual restore remain available.
+- Other gaming settings, including Game Mode, remain read-only. The batch handler does not write Windows security settings and cannot apply arbitrary registry data.
+- Update discovery runs two independent GitHub CLI checks concurrently and removes the redundant standalone authentication command. Update progress now includes elapsed seconds. Download is still the complete signed-by-hash-checked Actions artifact; changing the transfer mechanism is future work.
+- Windows package preflight checks the batch engine's read-only safety contract. Live batch application/rollback and total update speed require local testing.
+
 ## M2.5 — Installed power plans and responsive UI
 
 - The Free Settings tab now lists only power schemes already installed on the local PC and shows the currently active GUID.
@@ -43,7 +51,7 @@ The target architecture is Windows 10 and 11 with explicit per-setting capabilit
 
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M2.5 (mouse acceleration and local power-plan apply)
+## Current release: M2.6 (selectable batch apply and faster update check)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
