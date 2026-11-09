@@ -497,7 +497,7 @@ internal sealed class MainForm : Form
                 MessageBox.Show(this, "対象項目は現在の設定と同じです。", "一括適用");
                 return;
             }
-            var available = plan.ChangePower ? PowerPlanManager.Installed() : [];
+            IReadOnlyList<PowerPlanManager.Plan> available = plan.ChangePower ? PowerPlanManager.Installed() : [];
             string? oldPower = available.FirstOrDefault(x => x.Id == plan.OriginalPower)?.Label;
             string? newPower = available.FirstOrDefault(x => x.Id == plan.DesiredPower)?.Label;
             using var dialog = new ApplyPreviewDialog(plan, oldPower, newPower);
