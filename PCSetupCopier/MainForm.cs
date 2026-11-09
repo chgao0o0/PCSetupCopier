@@ -43,7 +43,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M3.0 (診断・適用対象選択・一括適用)";
+        Text = "PC Setup Copier — M3.1 (診断・適用対象選択・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -136,10 +136,18 @@ internal sealed class MainForm : Form
         cardList.Padding = new Padding(18, 16, 18, 12);
         powerChoices.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
 
-        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-            Padding = new Padding(18, 9, 18, 9), BackColor = Color.FromArgb(232, 239, 249) };
+        // Keep the action bar visible but align its controls with the settings cards,
+        // instead of stranding the Apply button at the far-right screen edge.
+        var footerHost = new Panel {
+            Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 239, 249)
+        };
+        var footer = new TableLayoutPanel {
+            ColumnCount = 2, RowCount = 1, Height = 54,
+            Padding = new Padding(6, 7, 6, 7),
+            BackColor = footerHost.BackColor
+        };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 252));
         applySummary.ForeColor = Color.FromArgb(35, 62, 100);
         applySummary.Font = new Font("Yu Gothic UI", 10f, FontStyle.Bold);
         footer.Controls.Add(applySummary, 0, 0);
@@ -153,9 +161,20 @@ internal sealed class MainForm : Form
         batchApply.Margin = new Padding(8, 0, 0, 0);
         batchApply.Click += (_, _) => ApplyBatch();
         footer.Controls.Add(batchApply, 1, 0);
+        footerHost.Controls.Add(footer);
+        void AlignFooter()
+        {
+            int cardWidth = mouseCard.Width;
+            footer.Width = Math.Max(350, Math.Min(footerHost.ClientSize.Width - 24, cardWidth));
+            footer.Left = Math.Max(0, (footerHost.ClientSize.Width - footer.Width) / 2);
+            footer.Top = Math.Max(0, (footerHost.ClientSize.Height - footer.Height) / 2);
+        }
+        footerHost.Resize += (_, _) => AlignFooter();
+        cardList.SizeChanged += (_, _) => AlignFooter();
         freeRoot.Controls.Add(cardList, 0, 0);
-        freeRoot.Controls.Add(footer, 0, 1);
+        freeRoot.Controls.Add(footerHost, 0, 1);
         freePage.Controls.Add(freeRoot);
+        AlignFooter();
 
         var presetPage = new TabPage("プリセット") { BackColor = Color.FromArgb(248, 250, 253) };
         var presetContent = new FlowLayoutPanel {
