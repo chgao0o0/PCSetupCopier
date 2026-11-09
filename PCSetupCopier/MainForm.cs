@@ -364,7 +364,7 @@ internal sealed class MainForm : Form
         bool powerChanged = false;
         try
         {
-            mouseChanged = mouseToggle.Enabled && (SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn;
+            mouseChanged = mouseToggle.Enabled && ((SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn);
             powerChanged = powerChoices.SelectedItem is PowerPlanManager.Plan choice &&
                 PowerPlanManager.ReadActive() != choice.Id;
         }
@@ -464,7 +464,7 @@ internal sealed class MainForm : Form
         try
         {
             bool mouseChanged = mouseToggle.Enabled &&
-                (SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn;
+                ((SettingsApplier.Read()[2] != 0) != mouseToggle.IsOn);
             var selectedPower = powerChoices.SelectedItem as PowerPlanManager.Plan;
             bool powerChanged = selectedPower != null &&
                 PowerPlanManager.ReadActive() != selectedPower.Id;
@@ -506,7 +506,7 @@ internal sealed class MainForm : Form
         try
         {
             int[] previous = SettingsApplier.Read();
-            int[] desired = mouseOn.Checked ? [6, 10, 1] : [0, 0, 0];
+            int[] desired = mouseToggle.IsOn ? [6, 10, 1] : [0, 0, 0];
             var choice = new SettingResult("mouse_acceleration", "Gaming", "マウス加速",
                 $"Threshold1={desired[0]} / Threshold2={desired[1]} / Accel={desired[2]}",
                 "取得済み", "自由設定");
@@ -565,7 +565,7 @@ internal sealed class MainForm : Form
             if (existing != null && MessageBox.Show(this,
                 $"「{existing.Name}」を上書きしますか？", "プリセット保存",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            PresetStore.Save(name, mouseOn.Checked);
+            PresetStore.Save(name, mouseToggle.IsOn);
             RefreshPresetChoices(name);
             MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -584,7 +584,7 @@ internal sealed class MainForm : Form
         {
             var preset = PresetStore.Load().FirstOrDefault(x => x.Name == name)
                 ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
-            mouseOn.Checked = preset.MouseAcceleration;
+            mouseToggle.IsOn = preset.MouseAcceleration;
             tabs.SelectedIndex = 1;
             
             presetName.Text = preset.Name;
