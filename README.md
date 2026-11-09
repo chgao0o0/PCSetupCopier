@@ -1,3 +1,11 @@
+## M7.0 — Simplified navigation and readable diagnostics
+
+- Replaced the crowded single-row tab navigation with a persistent **grouped left menu** (Home, Windows Settings, Game Environment, NVIDIA, Tools), so all destinations are visible and navigable without tiny overflow arrows.
+- The Home diagnostic screen now starts with a compact PC-readiness summary, direct shortcuts to Presets / Free Settings / NVIDIA, and a simplified three-column diagnostic table. Select an item to read its longer description in the separate details area rather than a truncated table cell.
+- Reduced unused header height and allowed the diagnostic current-value column to take the available width. Existing settings, saved presets, GPU management, export/restore features and explicit one-click batch confirmation remain available.
+- Preset selection is still **staging-only**, never automatic Windows or NVIDIA changes. Changes take effect only after explicit preview and Apply.
+- Windows CI tests compilation and package preflight; visual ergonomics still need validation on the user's real 1920×1200 display and DPI scale.
+
 ## M6.1 — Safer NVIDIA profile handling and diagnostics (no gaming PC required to stage)
 
 - New **ゲーミング診断レポート** tab: on-demand, read-only summary of Windows gaming preferences, detected monitors and enumerated refresh rates, NVIDIA global settings when supported, saved template counts and backup presence. Copy text or save as UTF-8 TXT for offline comparison; the report does not include executable paths or Windows user names.
