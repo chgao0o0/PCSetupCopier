@@ -57,6 +57,30 @@ internal static class NvidiaProfileStore
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
+    internal static void Export(string name, string path)
+    {
+        var item = Load().FirstOrDefault(x =>
+            string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
+            ?? throw new FileNotFoundException("選択したNVIDIAプリセットがありません。");
+        if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("JSONファイルを指定してください。");
+        File.WriteAllText(path, JsonSerializer.Serialize(item,
+            new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    internal static string Import(string path)
+    {
+        if (new FileInfo(path).Length is < 2 or > 40_000)
+            throw new InvalidDataException("NVIDIAプリセットのサイズが不正です。");
+        var item = JsonSerializer.Deserialize<Template>(File.ReadAllText(path))
+            ?? throw new InvalidDataException("プリセットJSONの形式が不正です。");
+        Validate(item);
+        if (Load().Any(x => string.Equals(x.Name, item.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("同じ名前のプリセットが既にあります。");
+        Save(item.Name, item.Values);
+        return item.Name;
+    }
+
     internal static bool VerifyContract()
     {
         try
