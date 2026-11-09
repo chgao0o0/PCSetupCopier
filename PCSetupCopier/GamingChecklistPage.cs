@@ -101,7 +101,9 @@ internal sealed class GamingChecklistPage : UserControl
         bool fps = mode.StartsWith("対戦", StringComparison.Ordinal);
         bool visual = mode.StartsWith("画質", StringComparison.Ordinal);
         var tips = new List<Tip>();
-        var screens = DisplayRefreshManager.Read();
+        IReadOnlyList<DisplayRefreshManager.Monitor> screens;
+        try { screens = DisplayRefreshManager.Read(); }
+        catch { screens = []; }
         string hz = screens.Count == 0 ? "取得不可" :
             string.Join(" / ", screens.Select(x => x.Label + ": " + x.CurrentHz + "Hz"));
         tips.Add(new("モニターのリフレッシュレート", hz,
@@ -110,7 +112,8 @@ internal sealed class GamingChecklistPage : UserControl
             "モニターが高Hzに対応していても、ケーブルや解像度、Windowsの現在値が低い場合があります。 " +
             "リフレッシュレートは別タブで選んで変更できます。", "ms-settings:display-advanced"));
 
-        int? game = GameModeManager.Read();
+        int? game;
+        try { game = GameModeManager.Read(); } catch { game = null; }
         tips.Add(new("Windows ゲームモード",
             game is null ? "関連値未設定" : game == 1 ? "オン指定" : "オフ指定",
             "通常はONで検証（ゲームごとの例外あり）",
@@ -148,7 +151,8 @@ internal sealed class GamingChecklistPage : UserControl
             "ノートPCでは消費電力・発熱の変化も確認してください。",
             "ms-settings:display-advancedgraphics"));
 
-        int? capture = CapturePreferenceManager.Read();
+        int? capture;
+        try { capture = CapturePreferenceManager.Read(); } catch { capture = null; }
         tips.Add(new("バックグラウンド録画",
             capture is null ? "関連値未設定" : capture == 1 ? "オン指定" : "オフ指定",
             fps ? "録画が不要ならOFFも比較（FPSとフレーム時間で判断）" :
