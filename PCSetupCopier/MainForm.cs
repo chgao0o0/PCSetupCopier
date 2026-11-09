@@ -16,6 +16,10 @@ internal sealed class MainForm : Form
     private readonly Button presetLoad = new() { Text = "選択内容を読み込む", AutoSize = true };
     private readonly Button presetDelete = new() { Text = "削除", AutoSize = true };
     private readonly Label freeCurrent = new();
+    private readonly Label powerCurrent = new() { AutoSize = true };
+    private readonly ComboBox powerChoices = new() { Width = 420, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Button powerApplyButton = new() { Text = "電源プランを適用", AutoSize = true };
+    private readonly Button powerRestoreButton = new() { Text = "電源プランを復元", AutoSize = true };
     private readonly RadioButton mouseOff = new() { Text = "オフ", AutoSize = true, Checked = true };
     private readonly RadioButton mouseOn = new() { Text = "オン", AutoSize = true };
     private readonly Button freeApplyButton = new() { Text = "マウス加速を適用", AutoSize = true, MinimumSize = new Size(190, 38) };
@@ -31,14 +35,14 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.4 (診断・自由設定・プリセット)";
+        Text = "PC Setup Copier — M2.5 (診断・自由設定・電源プラン)";
         Size = new Size(1250, 720);
-        MinimumSize = new Size(940, 540);
+        MinimumSize = new Size(760, 500);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Yu Gothic UI", 10f);
         var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 55,
             Font = new Font("Yu Gothic UI", 19f, FontStyle.Bold), Padding = new Padding(20, 10, 0, 0) };
-        var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速のみ選択適用・復元可能です。",
+        var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速と電源プランを個別に適用・復元できます。",
             Dock = DockStyle.Top, Height = 35, ForeColor = Color.DarkGreen, Padding = new Padding(20, 4, 0, 0) };
         device.Dock = DockStyle.Top;
         device.Height = 52;
@@ -93,6 +97,19 @@ internal sealed class MainForm : Form
         freeApplyButton.Margin = new Padding(0, 18, 0, 10);
         freeApplyButton.Click += (_, _) => ApplyFreeMouse();
         freeLayout.Controls.Add(freeApplyButton);
+        freeLayout.Controls.Add(new Label { Text = "電源プラン", AutoSize = true,
+            Font = new Font("Yu Gothic UI", 14f, FontStyle.Bold),
+            Margin = new Padding(0, 22, 0, 8) });
+        freeLayout.Controls.Add(new Label {
+            Text = "このPCに存在するプランだけを選択可能。Windowsの電源モードとは別の設定です。",
+            AutoSize = true, MaximumSize = new Size(710, 0)
+        });
+        powerCurrent.Padding = new Padding(0, 8, 0, 10);
+        freeLayout.Controls.Add(powerCurrent);
+        freeLayout.Controls.Add(powerChoices);
+        powerApplyButton.Margin = new Padding(0, 10, 0, 10);
+        powerApplyButton.Click += (_, _) => ApplyPowerPlan();
+        freeLayout.Controls.Add(powerApplyButton);
         freeLayout.Controls.Add(new Label { Text = "プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 14f, FontStyle.Bold),
             Margin = new Padding(0, 22, 0, 8) });
@@ -114,12 +131,12 @@ internal sealed class MainForm : Form
         freeLayout.Controls.Add(new Label { Text = "読み込みだけではWindowsの設定は変わりません。適用ボタンで確認後に変更します。",
             AutoSize = true, ForeColor = Color.DimGray });
         freeLayout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(780, 0),
-            Text = "他の10項目は安全な適用・復元方法が実装されるまで診断・比較専用です。",
+            Text = "ゲームモードなど残り9項目は検証済みの変更方法が実装されるまで診断・比較専用です。",
             ForeColor = Color.DimGray });
         freePage.Controls.Add(freeLayout);
 
         var copyPage = new TabPage("PCからコピー");
-        var copyContent = new Panel { Dock = DockStyle.Fill };
+        var copyContent = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         copyContent.Controls.Add(grid);
         copyContent.Controls.Add(actions);
         copyPage.Controls.Add(copyContent);
@@ -137,6 +154,12 @@ internal sealed class MainForm : Form
         restoreButton.MinimumSize = new Size(200, 38);
         restoreButton.Click += (_, _) => RestoreMouse();
         backupLayout.Controls.Add(restoreButton);
+        backupLayout.Controls.Add(new Label { Text = "電源プランの復元",
+            Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold),
+            AutoSize = true, Margin = new Padding(0, 25, 0, 10) });
+        powerRestoreButton.MinimumSize = new Size(200, 38);
+        powerRestoreButton.Click += (_, _) => RestorePowerPlan();
+        backupLayout.Controls.Add(powerRestoreButton);
         backupPage.Controls.Add(backupLayout);
 
         tabs.TabPages.Add(diagnosticPage);
@@ -259,6 +282,7 @@ internal sealed class MainForm : Form
             }
         }
         finally { diagnosticList.EndUpdate(); }
+        RefreshPowerPlan();
         try
         {
             int[] mouse = SettingsApplier.Read();
@@ -271,6 +295,78 @@ internal sealed class MainForm : Form
         {
             freeCurrent.Text = "マウス設定の取得失敗: " + ex.Message;
             freeApplyButton.Enabled = false;
+        }
+    }
+
+    private void RefreshPowerPlan()
+    {
+        try
+        {
+            Guid active = PowerPlanManager.ReadActive();
+            var available = PowerPlanManager.Installed();
+            powerChoices.BeginUpdate();
+            try
+            {
+                powerChoices.Items.Clear();
+                foreach (var plan in available) powerChoices.Items.Add(plan);
+                int index = available.ToList().FindIndex(x => x.Id == active);
+                if (index >= 0) powerChoices.SelectedIndex = index;
+            }
+            finally { powerChoices.EndUpdate(); }
+            powerCurrent.Text = "現在の電源プラン: " +
+                (available.FirstOrDefault(x => x.Id == active)?.Label ?? active.ToString("D"));
+            powerApplyButton.Enabled = powerChoices.SelectedItem is PowerPlanManager.Plan;
+        }
+        catch (Exception ex)
+        {
+            powerChoices.Items.Clear();
+            powerApplyButton.Enabled = false;
+            powerCurrent.Text = "電源プラン取得不可: " + ex.Message;
+        }
+    }
+
+    private void ApplyPowerPlan()
+    {
+        if (powerChoices.SelectedItem is not PowerPlanManager.Plan choice) return;
+        try
+        {
+            Guid before = PowerPlanManager.ReadActive();
+            if (before == choice.Id)
+            {
+                MessageBox.Show(this, "現在と同じプランです。", "電源プラン"); return;
+            }
+            if (MessageBox.Show(this,
+                "電源プランを変更します。\\n\\n現在: " + before +
+                "\\n変更後: " + choice.Label +
+                "\\n\\n事前バックアップ後に検証します。続行しますか？",
+                "電源プラン変更", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            string result = PowerPlanManager.Apply(choice.Id);
+            Scan();
+            MessageBox.Show(this, result, "電源プラン", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, ex.Message, "電源プラン変更失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RestorePowerPlan()
+    {
+        if (MessageBox.Show(this, "以前の電源プランに戻しますか？", "電源プラン復元",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            string result = PowerPlanManager.Restore();
+            Scan();
+            MessageBox.Show(this, result, "電源プラン", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, ex.Message, "電源プラン復元失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -435,9 +531,10 @@ internal sealed class MainForm : Form
         SettingPlan plan = SettingEngine.BuildPlan(source, selectedIds);
         applyButton.Enabled = plan.CanApply;
         restoreButton.Enabled = SettingEngine.CanRestore("mouse_acceleration");
-        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（適用対応: マウス加速のみ）" +
+        powerRestoreButton.Enabled = PowerPlanManager.CanRestore;
+        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（コピー適用: マウス加速 / 自由設定: マウス加速・電源）" +
             (source == null ? " / コピー元JSON未選択" : $" / コピー元: {source.ComputerName}") +
-            " / ほかの10項目は読み取り・比較専用";
+            " / その他の項目は読み取り・比較専用";
     }
 
     private void ApplySelected()
