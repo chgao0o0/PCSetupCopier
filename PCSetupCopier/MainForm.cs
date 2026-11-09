@@ -43,7 +43,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M3.2 (診断・適用対象選択・一括適用)";
+        Text = "PC Setup Copier — M3.3 (プリセット拡張・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -186,7 +186,7 @@ internal sealed class MainForm : Form
         };
         presetContent.Controls.Add(new Label { Text = "設定プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
-        presetContent.Controls.Add(new Label { Text = "マウス加速の選択を名前付きで保存・読み込みします。電源プランの保存は今後対応予定です。",
+        presetContent.Controls.Add(new Label { Text = "マウス加速・電源プランと適用対象スイッチをセットで保存できます。別PCの電源プランは安全に確認します。",
             AutoSize = true, MaximumSize = new Size(680, 0), Margin = new Padding(0, 8, 0, 16) });
         var saveRow = new FlowLayoutPanel { Width = 560, Height = 50 };
         saveRow.Controls.Add(presetName);
@@ -202,7 +202,7 @@ internal sealed class MainForm : Form
         loadRow.Controls.Add(presetDelete);
         presetContent.Controls.Add(loadRow);
         presetContent.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(680, 0),
-            Text = "読み込みではWindows設定は変更されません。自由設定に戻り、一括適用を押したときだけ反映します。",
+            Text = "読み込みではWindows設定は変更されません。別PCに存在しない電源プランは適用対象から外します。自由設定で内容を確認して一括適用してください。",
             ForeColor = Color.DimGray });
         presetPage.Controls.Add(presetContent);
 
@@ -606,7 +606,11 @@ internal sealed class MainForm : Form
             if (existing != null && MessageBox.Show(this,
                 $"「{existing.Name}」を上書きしますか？", "プリセット保存",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            PresetStore.Save(name, mouseDesired.SelectedIndex == 1);
+            var chosenPower = powerChoices.SelectedItem as PowerPlanManager.Plan;
+            bool includePower = powerCard.ApplySwitch.IsOn && chosenPower != null;
+            PresetStore.Save(name, mouseDesired.SelectedIndex == 1,
+                mouseCard.ApplySwitch.IsOn, includePower,
+                chosenPower?.Id, Environment.MachineName);
             RefreshPresetChoices(name);
             MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -625,12 +629,31 @@ internal sealed class MainForm : Form
         {
             var preset = PresetStore.Load().FirstOrDefault(x => x.Name == name)
                 ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
+            // Update pending UI only. No Windows settings are written by preset loading.
             mouseDesired.SelectedIndex = preset.MouseAcceleration ? 1 : 0;
-            mouseCard.ApplySwitch.IsOn = true;
+            mouseCard.ApplySwitch.IsOn = preset.IncludeMouse ?? true;
+            bool powerAvailable = false;
+            if (preset.IncludePower == true && preset.PowerPlanId is Guid target &&
+                string.Equals(preset.ComputerName, Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+            {
+                for (int i = 0; i < powerChoices.Items.Count; i++)
+                {
+                    if (powerChoices.Items[i] is PowerPlanManager.Plan p && p.Id == target)
+                    {
+                        powerChoices.SelectedIndex = i;
+                        powerAvailable = true;
+                        break;
+                    }
+                }
+            }
+            powerCard.ApplySwitch.IsOn = powerAvailable;
             tabs.SelectedIndex = 1;
-            
             presetName.Text = preset.Name;
-            MessageBox.Show(this, "選択内容を読み込みました。Windows設定はまだ変更していません。",
+            UpdateBatchSummary();
+            string note = preset.IncludePower == true && !powerAvailable
+                ? "保存時の電源プランがこのPCでは確認できないため、電源プランは適用対象から外しました。"
+                : "設定値と適用対象を読み込みました。";
+            MessageBox.Show(this, note + "\\nWindows設定はまだ変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
