@@ -101,6 +101,6 @@ internal sealed class SettingCard : Panel
 
     internal void SetCardWidth(int availableWidth)
     {
-        Width = Math.Clamp(availableWidth, 340, 800);
+        Width = Math.Clamp(availableWidth, 340, 1050);
     }
 }
