@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M5.2 (FPS・バランスプリセット・NVIDIAガイド)";
+        Text = "PC Setup Copier — M5.3 (自分のPC設定取込・自由カスタマイズ)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -269,6 +269,27 @@ internal sealed class MainForm : Form
             ForeColor = Color.FromArgb(88, 103, 122),
             Margin = new Padding(0, 3, 0, 18)
         });
+        presetContent.Controls.Add(new Label { Text = "自分のPCに合わせる",
+            AutoSize = true, Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold),
+            Margin = new Padding(0, 4, 0, 10) });
+        var currentRow = new FlowLayoutPanel { Width = 760, Height = 52, WrapContents = true };
+        var fromPc = new Button { Text = "このPCの現在設定を取り込む",
+            AutoSize = true, Height = 37, Margin = new Padding(0, 2, 8, 2) };
+        fromPc.Click += (_, _) => StageCurrentPcSettings();
+        currentRow.Controls.Add(fromPc);
+        var freeEdit = new Button { Text = "自由設定でカスタマイズする",
+            AutoSize = true, Height = 37, Margin = new Padding(0, 2, 8, 2) };
+        freeEdit.Click += (_, _) => { tabs.SelectedIndex = 1; };
+        currentRow.Controls.Add(freeEdit);
+        presetContent.Controls.Add(currentRow);
+        presetContent.Controls.Add(new Label {
+            Text = "取得できた現在値だけを希望値に取り込み、後から自由に編集・保存できます。\n" +
+                "現在のPCに合わせてもWindows設定は変更しません。NVIDIAの3Dドライバー設定は取得対象外です。",
+            AutoSize = true, MaximumSize = new Size(760, 0),
+            ForeColor = Color.FromArgb(88, 103, 122),
+            Margin = new Padding(0, 0, 0, 17)
+        });
+
         presetContent.Controls.Add(new Label { Text = "自分のプリセット",
             AutoSize = true, Font = new Font("Yu Gothic UI", 12f, FontStyle.Bold) });
         presetContent.Controls.Add(new Label { Text = "マウス加速・電源プラン・ゲームモード・2種類の録画関連値と、各適用対象スイッチをセットで保存できます。",
@@ -655,11 +676,13 @@ internal sealed class MainForm : Form
             applySummary.Text = selected == 0 ? "適用対象なし" :
                 $"適用対象 {selected}項目 / 変更予定 {changes}項目";
             batchApply.Enabled = changes > 0;
-            mouseDesired.Enabled = mouseSelected;
-            powerChoices.Enabled = powerSelected;
-            gameModeDesired.Enabled = gameSelected;
-            captureDesired.Enabled = captureSelected;
-            gameBarCaptureDesired.Enabled = gameBarSelected;
+            // Desired values and "apply" are independent. Allow users to edit a pending
+            // value while its apply switch is off; the batch ignores the value until opted in.
+            mouseDesired.Enabled = mouseCard.ApplySwitch.Enabled;
+            powerChoices.Enabled = powerCard.ApplySwitch.Enabled;
+            gameModeDesired.Enabled = gameModeCard.ApplySwitch.Enabled;
+            captureDesired.Enabled = captureCard.ApplySwitch.Enabled;
+            gameBarCaptureDesired.Enabled = gameBarCaptureCard.ApplySwitch.Enabled;
         }
         catch
         {
@@ -853,6 +876,82 @@ internal sealed class MainForm : Form
             presetDelete.Enabled = false;
             MessageBox.Show(this, "プリセット読み込み失敗: " + ex.Message,
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void StageCurrentPcSettings()
+    {
+        var unavailable = new List<string>();
+        try
+        {
+            // Read current values and stage in the controls; do not apply any system writes.
+            void Stage(SettingCard card, ComboBox editor, string label, Func<int?> read)
+            {
+                try
+                {
+                    int? value = read();
+                    if (!card.ApplySwitch.Enabled || value is null or < 0 or > 1)
+                    {
+                        card.ApplySwitch.IsOn = false;
+                        unavailable.Add(label);
+                        return;
+                    }
+                    editor.SelectedIndex = value.Value;
+                    card.ApplySwitch.IsOn = true;
+                }
+                catch
+                {
+                    card.ApplySwitch.IsOn = false;
+                    unavailable.Add(label);
+                }
+            }
+
+            Stage(mouseCard, mouseDesired, "マウス加速",
+                () => SettingsApplier.Read()[2] == 0 ? 0 : 1);
+            Stage(gameModeCard, gameModeDesired, "ゲームモード関連値",
+                () => GameModeManager.Read());
+            Stage(captureCard, captureDesired, "バックグラウンド録画関連値",
+                () => CapturePreferenceManager.Read());
+            Stage(gameBarCaptureCard, gameBarCaptureDesired, "Game Barキャプチャ関連値",
+                () => GameBarCaptureManager.Read());
+
+            try
+            {
+                Guid currentPlan = PowerPlanManager.ReadActive();
+                int index = powerChoices.Items.Cast<PowerPlanManager.Plan>()
+                    .ToList().FindIndex(x => x.Id == currentPlan);
+                if (index < 0 || !powerCard.ApplySwitch.Enabled)
+                {
+                    powerCard.ApplySwitch.IsOn = false;
+                    unavailable.Add("電源プラン");
+                }
+                else
+                {
+                    powerChoices.SelectedIndex = index;
+                    powerCard.ApplySwitch.IsOn = true;
+                }
+            }
+            catch
+            {
+                powerCard.ApplySwitch.IsOn = false;
+                unavailable.Add("電源プラン");
+            }
+
+            UpdateBatchSummary();
+            tabs.SelectedIndex = 1;
+            MessageBox.Show(this,
+                "このPCで取得できた設定値を、自由設定の希望値として取り込みました。\n" +
+                "現在のPC自身に適用する場合は通常、変更予定は0項目です。\n" +
+                "必要なら自由に編集して、プリセットタブから名前を付けて保存できます。\n\n" +
+                "Windows設定は変更していません。NVIDIAのドライバー3D設定は含まれません。" +
+                (unavailable.Count == 0 ? "" :
+                    "\n\n取得できないため適用対象から外した項目: " + string.Join("、", unavailable)),
+                "現在のPC設定を取り込み", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "現在の設定を取り込めません: " + ex.Message,
+                "取り込み失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
