@@ -66,7 +66,7 @@ internal sealed class GamingHardwarePage : UserControl
         AddButton(gameActions, "exeを手動追加", AddGames);
         AddButton(gameActions, "選択行を削除", RemoveSelected);
         AddButton(gameActions, "診断を更新", RefreshAll);
-        commands.Controls.Add(gameActions, 0, 0);
+        commands.Controls.Add(gameActions, 0, 1);
         var monitorActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         monitorActions.Controls.Add(new Label { Text = "画面", AutoSize = true,
             Margin = new Padding(4, 10, 5, 0) });
@@ -78,7 +78,7 @@ internal sealed class GamingHardwarePage : UserControl
         AddButton(monitorActions, "Windowsの詳細ディスプレイ設定", OpenAdvancedDisplay);
         monitorChoice.SelectedIndexChanged += (_, _) => UpdateRefreshChoices();
         changeRefresh.Click += (_, _) => ApplyRefresh();
-        commands.Controls.Add(monitorActions, 0, 1);
+        commands.Controls.Add(monitorActions, 0, 0);
         layout.Controls.Add(commands, 0, 2);
 
         games.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Apply", HeaderText = "適用", FillWeight = 40 });
