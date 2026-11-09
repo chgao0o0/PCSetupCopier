@@ -41,18 +41,20 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M2.7 (カード設定・一括適用)";
-        Size = new Size(1250, 720);
-        MinimumSize = new Size(760, 500);
+        Text = "PC Setup Copier — M2.8 (診断・自由設定・一括適用)";
+        Size = new Size(1080, 740);
+        MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Yu Gothic UI", 10f);
+        BackColor = Color.FromArgb(248, 250, 253);
         var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 55,
-            Font = new Font("Yu Gothic UI", 19f, FontStyle.Bold), Padding = new Padding(20, 10, 0, 0) };
+            Font = new Font("Yu Gothic UI", 18f, FontStyle.Bold), Padding = new Padding(24, 12, 0, 0), ForeColor = Color.FromArgb(28, 43, 65) };
         var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速と電源プランを選択して一括適用できます。",
-            Dock = DockStyle.Top, Height = 35, ForeColor = Color.DarkGreen, Padding = new Padding(20, 4, 0, 0) };
+            Dock = DockStyle.Top, Height = 30, ForeColor = Color.FromArgb(78, 101, 130), Padding = new Padding(24, 3, 0, 0) };
         device.Dock = DockStyle.Top;
-        device.Height = 52;
-        device.Padding = new Padding(20, 4, 0, 0);
+        device.Height = 47;
+        device.Padding = new Padding(24, 4, 0, 0);
+        device.ForeColor = Color.FromArgb(70, 82, 104);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(15, 3, 0, 0) };
         AddAction(actions, "JSONを書き出し", Export);
         AddAction(actions, "コピー元JSONを選ぶ", Import);
@@ -70,11 +72,11 @@ internal sealed class MainForm : Form
         updateButton.AutoSize = true;
         updateButton.MinimumSize = new Size(130, 36);
         updateButton.Click += async (_, _) => await UpdateAsync();
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 49, Padding = new Padding(15, 2, 0, 0) };
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 53, Padding = new Padding(20, 5, 0, 0), BackColor = BackColor };
         AddAction(toolbar, "PCを診断", Scan);
         toolbar.Controls.Add(updateButton);
 
-        var diagnosticPage = new TabPage("診断");
+        var diagnosticPage = new TabPage("診断") { BackColor = Color.White, Padding = new Padding(8) };
         diagnosticList.Columns.Add("設定", 225);
         diagnosticList.Columns.Add("取得状況", 110);
         diagnosticList.Columns.Add("現在値", 265);
@@ -86,24 +88,27 @@ internal sealed class MainForm : Form
         };
         diagnosticPage.Controls.Add(diagnosticList);
 
-        var freePage = new TabPage("自由設定");
+        var freePage = new TabPage("自由設定") { BackColor = Color.FromArgb(248, 250, 253) };
         var freeRoot = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         freeRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
 
         mouseCard.Selected.Checked = true;
+        mouseOff.Text = "加速オフ";
+        mouseOn.Text = "加速オン";
+        mouseOff.Margin = new Padding(0, 4, 15, 0);
+        mouseOn.Margin = new Padding(0, 4, 0, 0);
         mouseCard.Editor.Controls.Add(mouseOff);
         mouseCard.Editor.Controls.Add(mouseOn);
-        mouseCard.Editor.Controls.Add(new Label { Text = "※ マウスのポインター速度は変更しません。",
-            ForeColor = Color.DimGray, AutoSize = true });
-        mouseCard.Editor.Controls.Add(freeCurrent);
+
         cardList.Controls.Add(mouseCard);
 
         powerCard.Selected.Checked = true;
-        powerCard.Height = 188;
+        powerCard.Height = 132;
+        powerChoices.Width = 258;
+        powerChoices.Margin = new Padding(0, 1, 0, 0);
         powerCard.Editor.Controls.Add(powerChoices);
-        powerCard.Editor.Controls.Add(powerCurrent);
         cardList.Controls.Add(powerCard);
 
         foreach (var info in new (string Name, string Reason)[] {
@@ -111,11 +116,13 @@ internal sealed class MainForm : Form
             ("GPUスケジューリング（HAGS）", "OSとGPUの対応状況を検証中です。"),
             ("バックグラウンド録画", "録画機能全体の実効状態を検証中です。") })
         {
-            var unsupported = new SettingCard(info.Name, info.Reason, false) { Height = 115 };
+            var unsupported = new SettingCard(info.Name, info.Reason, false);
             cardList.Controls.Add(unsupported);
         }
 
         cardList.SizeChanged += (_, _) => ResizeCards();
+        cardList.BackColor = Color.FromArgb(248, 250, 253);
+        cardList.Padding = new Padding(18, 16, 18, 12);
         mouseCard.Selected.CheckedChanged += (_, _) => UpdateBatchSummary();
         powerCard.Selected.CheckedChanged += (_, _) => UpdateBatchSummary();
         mouseOn.CheckedChanged += (_, _) => UpdateBatchSummary();
@@ -123,12 +130,19 @@ internal sealed class MainForm : Form
         powerChoices.SelectedIndexChanged += (_, _) => UpdateBatchSummary();
 
         var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-            Padding = new Padding(18, 12, 18, 12), BackColor = Color.FromArgb(237, 242, 248) };
+            Padding = new Padding(18, 9, 18, 9), BackColor = Color.FromArgb(232, 239, 249) };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
+        applySummary.ForeColor = Color.FromArgb(35, 62, 100);
+        applySummary.Font = new Font("Yu Gothic UI", 10f, FontStyle.Bold);
         footer.Controls.Add(applySummary, 0, 0);
         batchApply.Text = "選択項目を一括適用";
         batchApply.Dock = DockStyle.Fill;
+        batchApply.FlatStyle = FlatStyle.Flat;
+        batchApply.FlatAppearance.BorderSize = 0;
+        batchApply.BackColor = Color.FromArgb(34, 97, 176);
+        batchApply.ForeColor = Color.White;
+        batchApply.Font = new Font("Yu Gothic UI", 10f, FontStyle.Bold);
         batchApply.Margin = new Padding(8, 0, 0, 0);
         batchApply.Click += (_, _) => ApplyBatch();
         footer.Controls.Add(batchApply, 1, 0);
@@ -190,8 +204,8 @@ internal sealed class MainForm : Form
         backupLayout.Controls.Add(powerRestoreButton);
         backupPage.Controls.Add(backupLayout);
 
-        tabs.TabPages.Add(freePage);
         tabs.TabPages.Add(diagnosticPage);
+        tabs.TabPages.Add(freePage);
         tabs.TabPages.Add(presetPage);
         tabs.TabPages.Add(copyPage);
         tabs.TabPages.Add(backupPage);
@@ -229,7 +243,9 @@ internal sealed class MainForm : Form
             UpdateStatus();
         };
         status.Dock = DockStyle.Bottom;
-        status.Height = 36;
+        status.Height = 32;
+        status.ForeColor = Color.FromArgb(79, 94, 115);
+        status.BackColor = Color.FromArgb(240, 244, 249);
         status.Padding = new Padding(20, 5, 0, 0);
         Controls.Add(tabs);
         Controls.Add(status);
@@ -240,6 +256,7 @@ internal sealed class MainForm : Form
         Scan();
         RefreshPresetChoices();
         UpdateBatchSummary();
+        ResizeCards();
     }
 
     private static void AddAction(FlowLayoutPanel panel, string label, Action action)
@@ -316,7 +333,8 @@ internal sealed class MainForm : Form
         try
         {
             int[] mouse = SettingsApplier.Read();
-            freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "オフ" : "オン")}  / Threshold1={mouse[0]} / Threshold2={mouse[1]} / Accel={mouse[2]}";
+            freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "加速オフ" : "加速オン")}";
+            mouseCard.Current.Text = freeCurrent.Text;
             mouseOn.Checked = mouse[2] != 0;
             mouseOff.Checked = mouse[2] == 0;
             UpdateBatchSummary();
@@ -324,6 +342,7 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             freeCurrent.Text = "マウス設定の取得失敗: " + ex.Message;
+            mouseCard.Current.Text = freeCurrent.Text;
             mouseCard.Selected.Enabled = false;
             mouseCard.Selected.Checked = false;
             UpdateBatchSummary();
@@ -332,7 +351,7 @@ internal sealed class MainForm : Form
 
     private void ResizeCards()
     {
-        int width = Math.Max(370, cardList.ClientSize.Width - cardList.Padding.Horizontal - 16);
+        int width = Math.Max(330, cardList.ClientSize.Width - cardList.Padding.Horizontal - 28);
         foreach (Control card in cardList.Controls)
             if (card is SettingCard settingCard) settingCard.SetCardWidth(width);
     }
@@ -364,8 +383,9 @@ internal sealed class MainForm : Form
                 if (index >= 0) powerChoices.SelectedIndex = index;
             }
             finally { powerChoices.EndUpdate(); }
-            powerCurrent.Text = "現在の電源プラン: " +
+            powerCurrent.Text = "現在: " +
                 (available.FirstOrDefault(x => x.Id == active)?.Label ?? active.ToString("D"));
+            powerCard.Current.Text = powerCurrent.Text;
             UpdateBatchSummary();
         }
         catch (Exception ex)
@@ -373,6 +393,7 @@ internal sealed class MainForm : Form
             powerChoices.Items.Clear();
             UpdateBatchSummary();
             powerCurrent.Text = "電源プラン取得不可: " + ex.Message;
+            powerCard.Current.Text = powerCurrent.Text;
         }
     }
 
@@ -552,7 +573,7 @@ internal sealed class MainForm : Form
                 ?? throw new FileNotFoundException("選択されたプリセットが見つかりません。");
             mouseOn.Checked = preset.MouseAcceleration;
             mouseCard.Selected.Checked = true;
-            tabs.SelectedIndex = 0;
+            tabs.SelectedIndex = 1;
             mouseOff.Checked = !preset.MouseAcceleration;
             presetName.Text = preset.Name;
             MessageBox.Show(this, "選択内容を読み込みました。Windows設定はまだ変更していません。",
