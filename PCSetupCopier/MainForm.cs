@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M4.1 (ゲーミングPC向け・ゲーム別GPU・画面診断)";
+        Text = "PC Setup Copier — M5.0 (ゲーム自動検出・Hz設定・最適化チェック)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -313,6 +313,11 @@ internal sealed class MainForm : Form
         };
         gamingPage.Controls.Add(new GamingHardwarePage { Dock = DockStyle.Fill });
         tabs.TabPages.Add(gamingPage);
+        var tipsPage = new TabPage("ゲーム最適化チェック") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        tipsPage.Controls.Add(new GamingChecklistPage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(tipsPage);
         tabs.TabPages.Add(copyPage);
         tabs.TabPages.Add(backupPage);
         grid.Dock = DockStyle.Fill;
