@@ -45,3 +45,14 @@ The previous M1.5 CMD-based updater may fail when the installation directory con
 ### M1.7 staged-update preflight
 
 Before changing an installed executable, the app now launches the downloaded packaged executable using `--verify-package` and checks that it exits successfully. The Windows Actions workflow runs the same package-level smoke test on every build. The old exe and metadata are still backed up before replacement, with rollback attempted on failure. This guards against broken packaging; it does **not** prove a full update or rollback succeeds on the user's Windows computer. Windows settings remain read-only.
+
+
+## M2.0 — first safe apply capability
+
+- Windows mouse acceleration is the **only** setting that can be written at this stage. The other 10 items remain diagnostics/comparison-only.
+- Import a source JSON snapshot, select **only** the mouse-acceleration checkbox, click **選択項目を適用**, and confirm the displayed before/after values.
+- The original 3 SPI mouse parameters are written to a timestamped file and `%LOCALAPPDATA%\\PCSetupCopier\\Backups\\mouse-acceleration-latest.json` before applying.
+- The tool calls Windows `SPI_SETMOUSE` with persistence and broadcasts the change, reads back the values, and attempts immediate rollback on error.
+- The **マウス設定を復元** button restores the backup. Backups are intentionally retained.
+- No registry copying, Defender/firewall/UAC/Windows Update changes, elevation, or writes to other items.
+- This version needs a Windows runtime apply/restore test before use on a friend's PC.
