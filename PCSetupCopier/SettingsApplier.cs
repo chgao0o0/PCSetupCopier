@@ -79,6 +79,15 @@ internal static class SettingsApplier
         return "マウス加速を適用し、再取得で確認しました。元の値はバックアップ済みです。";
     }
 
+    // Used only for rollback within the same confirmed batch.
+    internal static void RestoreExact(int[] original)
+    {
+        if (original.Length != 3 || original[0] is < 0 or > 20 ||
+            original[1] is < 0 or > 20 || original[2] is < 0 or > 2)
+            throw new InvalidDataException("復元用のマウス設定が不正です。");
+        Write(original);
+    }
+
     internal static string Restore()
     {
         if (!File.Exists(LatestBackup))
