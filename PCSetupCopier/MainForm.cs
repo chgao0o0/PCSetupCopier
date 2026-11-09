@@ -43,7 +43,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M3.1 (診断・適用対象選択・一括適用)";
+        Text = "PC Setup Copier — M3.2 (診断・適用対象選択・一括適用)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -98,7 +98,7 @@ internal sealed class MainForm : Form
         var freeRoot = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         freeRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         freeRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        freeRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
 
         // The header switch selects whether this item participates in Apply.
         // The editor below independently specifies its desired setting.
@@ -142,30 +142,33 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 239, 249)
         };
         var footer = new TableLayoutPanel {
-            ColumnCount = 2, RowCount = 1, Height = 54,
-            Padding = new Padding(6, 7, 6, 7),
+            ColumnCount = 2, RowCount = 1, Height = 64,
+            Padding = new Padding(8, 8, 8, 8),
             BackColor = footerHost.BackColor
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 252));
+        footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         applySummary.ForeColor = Color.FromArgb(35, 62, 100);
         applySummary.Font = new Font("Yu Gothic UI", 10f, FontStyle.Bold);
         footer.Controls.Add(applySummary, 0, 0);
         batchApply.Text = "選択項目を一括適用";
+        batchApply.AutoSize = false;
+        batchApply.MinimumSize = Size.Empty;
         batchApply.Dock = DockStyle.Fill;
         batchApply.FlatStyle = FlatStyle.Flat;
         batchApply.FlatAppearance.BorderSize = 0;
         batchApply.BackColor = Color.FromArgb(34, 97, 176);
         batchApply.ForeColor = Color.White;
         batchApply.Font = new Font("Yu Gothic UI", 10f, FontStyle.Bold);
-        batchApply.Margin = new Padding(8, 0, 0, 0);
+        batchApply.Margin = new Padding(8, 3, 0, 3);
         batchApply.Click += (_, _) => ApplyBatch();
         footer.Controls.Add(batchApply, 1, 0);
         footerHost.Controls.Add(footer);
         void AlignFooter()
         {
             int cardWidth = mouseCard.Width;
-            footer.Width = Math.Max(350, Math.Min(footerHost.ClientSize.Width - 24, cardWidth));
+            footer.Width = Math.Max(0, Math.Min(footerHost.ClientSize.Width - 24, cardWidth));
             footer.Left = Math.Max(0, (footerHost.ClientSize.Width - footer.Width) / 2);
             footer.Top = Math.Max(0, (footerHost.ClientSize.Height - footer.Height) / 2);
         }
