@@ -24,7 +24,7 @@ jobs:
       - name: Write build metadata
         shell: pwsh
         run: |
-          $info = @{ commit = "${{ github.sha }}"; version = "M5.0" } | ConvertTo-Json -Compress
+          $info = @{ commit = "${{ github.sha }}"; version = "M5.1" } | ConvertTo-Json -Compress
           Set-Content -LiteralPath "publish/build-info.json" -Value $info -Encoding utf8
       - name: Write executable checksum
         shell: pwsh
