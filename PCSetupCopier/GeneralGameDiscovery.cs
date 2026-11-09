@@ -211,8 +211,24 @@ internal static class GeneralGameDiscovery
                     AddCandidate(output, Path.GetFileNameWithoutExtension(exe), exe,
                         "ゲームフォルダー", true);
                 foreach (var sub in Directory.EnumerateDirectories(root).Take(65))
+                    {
                     foreach (var exe in Executables(sub, 50))
                         AddCandidate(output, Path.GetFileName(sub), exe, "ゲームフォルダー", true);
+                    // Common game subdirectories (e.g. VALORANT/live/ShooterGame/Binaries/Win64).
+                    // Restrict traversal to known executable locations and two nested levels.
+                    foreach (string childName in new[] { "live", "Game", "Client", "ShooterGame",
+                        "Bin", "bin", "Retail", "_retail_" })
+                    {
+                        string child = Path.Combine(sub, childName);
+                        if (!Directory.Exists(child)) continue;
+                        foreach (var exe in Executables(child, 25))
+                            AddCandidate(output, Path.GetFileName(sub), exe, "ゲームフォルダー", true);
+                        string binaries = Path.Combine(child, "ShooterGame", "Binaries", "Win64");
+                        if (Directory.Exists(binaries))
+                            foreach (var exe in Executables(binaries, 25))
+                                AddCandidate(output, Path.GetFileName(sub), exe, "ゲームフォルダー", true);
+                    }
+                }
             }
             catch { }
         }
@@ -223,7 +239,8 @@ internal static class GeneralGameDiscovery
         if (!Directory.Exists(folder)) yield break;
         var paths = new List<string> { folder };
         foreach (string relative in new[] { "Binaries", @"Binaries\Win64", @"Game\Binaries\Win64",
-            "bin", @"bin\x64", "x64", "Win64", @"Engine\Binaries\Win64" })
+            "bin", @"bin\x64", "x64", "Win64", @"Engine\Binaries\Win64",
+            @"ShooterGame\Binaries\Win64", @"live\ShooterGame\Binaries\Win64" })
         {
             string sub = Path.Combine(folder, relative);
             if (Directory.Exists(sub)) paths.Add(sub);
