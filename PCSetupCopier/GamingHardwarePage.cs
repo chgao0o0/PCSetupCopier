@@ -60,7 +60,8 @@ internal sealed class GamingHardwarePage : UserControl
         commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         var gameActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        AddButton(gameActions, "Steam / Epicを自動検出", DiscoverGames);
+        AddButton(gameActions, "ゲームをまとめて自動検出", DiscoverGames);
+        AddButton(gameActions, "検索フォルダー追加", AddSearchFolder);
         AddButton(gameActions, "exeを手動追加", AddGames);
         AddButton(gameActions, "選択行を削除", RemoveSelected);
         AddButton(gameActions, "診断を更新", RefreshAll);
@@ -237,23 +238,45 @@ internal sealed class GamingHardwarePage : UserControl
         }
     }
 
+    private void AddSearchFolder()
+    {
+        using var picker = new FolderBrowserDialog {
+            Description = "インストールしたゲームが入っているフォルダーを選んでください",
+            UseDescriptionForTitle = true, ShowNewFolderButton = false
+        };
+        if (picker.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            GeneralGameDiscovery.AddFolder(picker.SelectedPath);
+            MessageBox.Show(this,
+                "検索フォルダーを登録しました。ゲームの自動検出を実行すると、このフォルダーも調べます。\n" +
+                "フォルダーの登録だけではWindowsの設定を変更しません。",
+                "検索対象を追加", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "検索フォルダーの追加に失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void DiscoverGames()
     {
         try
         {
             var found = GameDiscovery.Find().Where(x => !games.Rows.Cast<DataGridViewRow>().Any(
                 row => string.Equals(row.Cells["Path"].Value as string, x.Exe,
-                    StringComparison.OrdinalIgnoreCase))).Take(150).ToArray();
+                    StringComparison.OrdinalIgnoreCase))).Take(300).ToArray();
             if (found.Length == 0)
             {
-                MessageBox.Show(this, "Steam / Epicで追加できるゲームが見つかりませんでした。手動追加も利用できます。",
+                MessageBox.Show(this, "インストール情報・ショートカット・ゲームフォルダーから新しいexe候補が見つかりませんでした。検索フォルダー追加や手動登録を利用できます。",
                     "ゲームの自動検出", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             using var dialog = new Form {
                 Text = "ゲーム自動検出 — 登録するexeを確認",
                 StartPosition = FormStartPosition.CenterParent,
-                Size = new Size(850, 570),
+                Size = new Size(980, 640),
                 MinimumSize = new Size(600, 380)
             };
             var list = new DataGridView {
@@ -278,11 +301,11 @@ internal sealed class GamingHardwarePage : UserControl
                 int row = list.Rows.Add(!item.Ambiguous, item.Title, item.Store, item.Exe);
                 list.Rows[row].Tag = item;
                 list.Rows[row].Cells[3].ToolTipText =
-                    item.Ambiguous ? "複数の実行ファイル候補があります。正しいゲーム本体か確認してください。" : item.Exe;
+                    item.Ambiguous ? "ゲーム本体のexeか確認が必要です。自動で適用対象にはしません。" : item.Exe;
             }
             var heading = new Label {
                 Dock = DockStyle.Top, Height = 56,
-                Text = "検出結果はゲーム本体のexeとは限りません。パスを確認して登録してください。\n未チェックのゲームは追加しません。登録だけではWindowsの設定は変更しません。",
+                Text = "Steam・Epic・他のランチャー・インストール情報・ショートカット・ゲームフォルダーから検索。\nゲーム以外のexeも含む可能性があります。正しいexeを確認し、登録するものだけチェックしてください。",
                 Padding = new Padding(12, 8, 8, 5)
             };
             var actions = new FlowLayoutPanel {
