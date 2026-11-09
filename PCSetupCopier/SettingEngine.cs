@@ -144,9 +144,14 @@ internal static class SettingEngine
                 continue;
             }
             var item = source.Settings?.FirstOrDefault(x => x.Id == id);
-            if (item == null || !handler.TryPrepare(item, out var target, out var reason))
+            if (item == null)
             {
-                blocked.Add($"{capability.DisplayName}: {(item == null ? "コピー元データがありません。" : reason)}");
+                blocked.Add($"{capability.DisplayName}: コピー元データがありません。");
+                continue;
+            }
+            if (!handler.TryPrepare(item, out var target, out var reason))
+            {
+                blocked.Add($"{capability.DisplayName}: {reason}");
                 continue;
             }
             try
