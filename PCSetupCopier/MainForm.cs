@@ -15,7 +15,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M1.7 (診断・比較・更新)";
+        Text = "PC Setup Copier — M1.8 (診断・比較・更新)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -97,9 +97,13 @@ internal sealed class MainForm : Form
         {
             var progress = new Progress<string>(message => status.Text = message);
             string result = await UpdateManager.CheckAndStageAsync(progress, CancellationToken.None);
-            MessageBox.Show(this, result, "更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
             if (result.Contains("アプリを終了して更新します。", StringComparison.Ordinal))
+            {
+                // The staged helper waits for this process to exit. Never block here with a dialog.
                 Close();
+                return;
+            }
+            MessageBox.Show(this, result, "更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
