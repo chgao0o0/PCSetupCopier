@@ -225,7 +225,14 @@ internal static class UpdateManager
                 else if (!string.Equals(Path.GetFullPath(old.MainModule?.FileName ?? ""), Path.GetFullPath(targetExe), StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("終了待ち対象が元のアプリと一致しません。");
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                await old.WaitForExitAsync(timeout.Token);
+                try
+                {
+                    await old.WaitForExitAsync(timeout.Token);
+                }
+                catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                {
+                    throw new TimeoutException("旧アプリが45秒以内に終了しませんでした。更新はまだ適用していません。");
+                }
             }
             catch (ArgumentException) { } // Already exited.
 
