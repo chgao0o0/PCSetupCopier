@@ -1,8 +1,23 @@
 # PC Setup Copier
 
+## M2.2 — Common setting engine (2026-11-09)
+
+The setting engine now registers all 11 existing gaming settings behind a common handler contract:
+capability detection, current-value read, desired-value validation, apply, and restore.
+A single change-plan builder rejects unavailable/unknown settings and unsupported writes.
+The UI uses that plan for enabling its Apply button and for confirmation of changes.
+M2.2 keeps the original JSON import/export and GitHub self-update workflow.
+
+**Write allowlist:** only `mouse_acceleration` has an applying handler; it delegates to the existing backed-up and verified Windows mouse settings implementation.
+All other 10 settings are read-only adapters; unrecognized IDs (including security controls) are rejected.
+The CI package preflight checks the expected registry and the single-writer restriction without changing any Windows setting.
+Actual cross-version testing and applying multiple settings transactionally remain future work.
+The target architecture is Windows 10 and 11 with explicit per-setting capability checks, not blind registry value copying.
+
+
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M1.6 (read-only)
+## Current release: M2.2 (mouse acceleration apply only)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
