@@ -9,11 +9,10 @@ internal sealed class SettingCard : Panel
     private static readonly Color Edge = Color.FromArgb(224, 231, 240);
     private readonly Label descriptionLabel;
 
-    internal CheckBox Selected { get; } = new()
-    {
-        Text = "変更する", AutoSize = true, Checked = false,
-        ForeColor = Color.FromArgb(37, 89, 153),
-        Anchor = AnchorStyles.Right
+    internal SettingToggle ApplySwitch { get; } = new() { AccessibleName = "一括適用の対象" };
+    private readonly Label applyLabel = new() {
+        Text = "適用対象", AutoSize = true, ForeColor = Color.FromArgb(88, 102, 124),
+        Margin = new Padding(0, 8, 7, 0)
     };
     internal Label Current { get; } = new()
     {
@@ -33,7 +32,7 @@ internal sealed class SettingCard : Panel
     {
         BackColor = supported ? Color.White : Color.FromArgb(246, 248, 251);
         Height = supported ? 132 : 88;
-        Selected.Visible = false;
+
         Width = 760;
         Margin = new Padding(5, 5, 5, 10);
         Padding = new Padding(18, 10, 18, 10);
@@ -65,7 +64,17 @@ internal sealed class SettingCard : Panel
         };
         content.Controls.Add(title, 0, 0);
         content.Controls.Add(descriptionLabel, 0, 1);
-        // Desired values are compared automatically; no second selection checkbox.
+        if (supported)
+        {
+            var switchHost = new FlowLayoutPanel {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false, Margin = Padding.Empty
+            };
+            ApplySwitch.Margin = new Padding(0, 0, 0, 0);
+            switchHost.Controls.Add(ApplySwitch);
+            switchHost.Controls.Add(applyLabel);
+            content.Controls.Add(switchHost, 1, 0);
+        }
 
         if (supported)
         {
