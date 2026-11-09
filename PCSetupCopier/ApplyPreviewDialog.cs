@@ -28,6 +28,11 @@ internal sealed class ApplyPreviewDialog : Form
                 (plan.OriginalGameMode == null ? "未設定" : plan.OriginalGameMode == 1 ? "オン指定" : "オフ指定") +
                 "\n  変更後: " + (plan.DesiredGameMode == 1 ? "オン指定" : "オフ指定") +
                 "\n  ※ Windows設定画面の実効状態は保証しません。");
+        if (plan.ChangeCapture)
+            changes.Add("バックグラウンド録画の関連設定値\\n  現在: " +
+                (plan.OriginalCapture == null ? "未設定" : plan.OriginalCapture == 1 ? "オン指定" : "オフ指定") +
+                "\\n  変更後: " + (plan.DesiredCapture == 1 ? "オン指定" : "オフ指定") +
+                "\\n  ※ Game Barの実効録画状態は保証しません。");
         var details = new TextBox {
             Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
             ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
