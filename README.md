@@ -1,5 +1,14 @@
 # PC Setup Copier
 
+## M2.4 — Named preferences and compact diagnostics
+
+- The Diagnostics tab uses a sortable-by-reading compact table instead of a long continuous text dump. All 11 existing diagnostic results remain read-only.
+- The Free Settings tab saves, loads and deletes named mouse-acceleration preferences, locally at `%LOCALAPPDATA%\\PCSetupCopier\\Presets\\presets.json`. At most 100 presets, with name validation and atomic replacement.
+- Preset loading only updates the selection on screen; the user must separately press Apply and confirm before any Windows setting changes.
+- Presets are **not** backups. The separate before-change mouse backup/restore capability remains unchanged.
+- Package preflight verifies the safe capability registry and the preset serialization/name validation contract, but live mouse changes still require Windows device testing.
+- The 10 other settings remain read-only while their Windows-version-specific APIs and rollback methods are evaluated.
+
 ## M2.3 — Free configuration and tabbed UI
 
 - Four pages: diagnosis, free configuration, import/copy from another PC, backup/restore.
@@ -25,7 +34,7 @@ The target architecture is Windows 10 and 11 with explicit per-setting capabilit
 
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M2.3 (mouse acceleration apply only)
+## Current release: M2.4 (mouse acceleration apply only)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
