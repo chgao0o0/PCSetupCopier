@@ -2,9 +2,12 @@ using System.Text.Json;
 
 namespace PCSetupCopier;
 
-// Presets are preferences, not backup snapshots. Only an explicitly supported
-// mouse acceleration choice is accepted; reading a preset never changes Windows.
-internal sealed record UserPreset(string Name, bool MouseAcceleration, DateTimeOffset SavedAt);
+// Presets are pending preferences, never system-write commands.
+// Optional fields preserve compatibility with existing mouse-only M2.x presets.
+internal sealed record UserPreset(
+    string Name, bool MouseAcceleration, DateTimeOffset SavedAt,
+    bool? IncludeMouse = null, bool? IncludePower = null,
+    Guid? PowerPlanId = null, string? ComputerName = null);
 
 internal static class PresetStore
 {
@@ -33,19 +36,32 @@ internal static class PresetStore
         {
             if (preset is null) throw new InvalidDataException("プリセットが不正です。");
             ValidateName(preset.Name);
+            if (preset.PowerPlanId == Guid.Empty || preset.ComputerName?.Length > 255)
+                throw new InvalidDataException("プリセットの電源プラン情報が不正です。");
         }
         if (list.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != list.Count)
             throw new InvalidDataException("プリセット名が重複しています。");
         return list.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
-    internal static void Save(string name, bool mouseAcceleration)
+    internal static void Save(string name, bool mouseAcceleration) =>
+        Save(name, mouseAcceleration, true, false, null, null);
+
+    internal static void Save(
+        string name, bool mouseAcceleration, bool includeMouse,
+        bool includePower, Guid? powerPlanId, string? computerName)
     {
+        if (includePower && (powerPlanId == null || powerPlanId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(computerName)))
+            throw new ArgumentException("電源プランの保存に必要なPC情報が不足しています。");
+        if (computerName?.Length > 255)
+            throw new ArgumentException("PC名が長すぎます。");
         name = name.Trim();
         ValidateName(name);
         var list = Load().ToList();
         int existing = list.FindIndex(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-        var entry = new UserPreset(name, mouseAcceleration, DateTimeOffset.Now);
+        var entry = new UserPreset(name, mouseAcceleration, DateTimeOffset.Now,
+            includeMouse, includePower, powerPlanId, computerName);
         if (existing >= 0) list[existing] = entry;
         else
         {
@@ -89,8 +105,15 @@ internal static class PresetStore
             ValidateName("Gaming");
             try { ValidateName("../invalid"); return false; }
             catch (ArgumentException) { }
-            var sample = new UserPreset("Gaming", false, DateTimeOffset.UnixEpoch);
-            return JsonSerializer.Deserialize<UserPreset>(JsonSerializer.Serialize(sample)) == sample;
+            var sample = new UserPreset("Gaming", false, DateTimeOffset.UnixEpoch,
+                true, true, Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e"), "Test-PC");
+            if (JsonSerializer.Deserialize<UserPreset>(JsonSerializer.Serialize(sample)) != sample)
+                return false;
+            // Old mouse-only presets must remain loadable and never auto-select power.
+            const string legacy = "{\"Name\":\"Old\",\"MouseAcceleration\":true,\"SavedAt\":\"2025-01-01T00:00:00+00:00\"}";
+            var old = JsonSerializer.Deserialize<UserPreset>(legacy);
+            return old?.MouseAcceleration == true && old.IncludeMouse == null &&
+                   old.IncludePower == null && old.PowerPlanId == null;
         }
         catch { return false; }
     }
