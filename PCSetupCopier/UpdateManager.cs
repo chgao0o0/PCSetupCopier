@@ -185,7 +185,7 @@ internal static class UpdateManager
             var marker = Path.Combine(AppContext.BaseDirectory, "build-info.json");
             using var document = JsonDocument.Parse(File.ReadAllText(marker));
             var sha = document.RootElement.GetProperty("commit").GetString();
-            return sha is { Length: 40 } && sha.All(Uri.IsHexDigit) && SettingEngine.ValidateSafetyContract() && PresetStore.VerifyContract() && PowerPlanManager.VerifyContract() ? 0 : 1;
+            return sha is { Length: 40 } && sha.All(Uri.IsHexDigit) && SettingEngine.ValidateSafetyContract() && PresetStore.VerifyContract() && PowerPlanManager.VerifyContract() && BatchSettingsApplier.VerifyContract() ? 0 : 1;
         }
         catch { return 1; }
     }
