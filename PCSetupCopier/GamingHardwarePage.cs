@@ -88,7 +88,30 @@ internal sealed class GamingHardwarePage : UserControl
         bottom.Controls.Add(apply, 2, 0);
         layout.Controls.Add(bottom, 0, 4);
         Controls.Add(layout);
+        try
+        {
+            foreach (string path in GameGpuPreferences.LoadGameList())
+                AddGameRow(path);
+        }
+        catch (Exception ex) { info.Text = "保存したゲーム一覧の読み込みに失敗しました: " + ex.Message; }
         RefreshAll();
+    }
+
+    private void AddGameRow(string path)
+    {
+        if (games.Rows.Cast<DataGridViewRow>().Any(x =>
+            string.Equals(x.Cells["Path"].Value as string, path, StringComparison.OrdinalIgnoreCase)))
+            return;
+        string? value = GameGpuPreferences.Read(path);
+        int row = games.Rows.Add(false, Path.GetFileNameWithoutExtension(path), path,
+            GameGpuPreferences.Label(value), GameGpuPreferences.Label(value));
+        games.Rows[row].Cells["Path"].ToolTipText = path;
+    }
+
+    private void SaveGameRows()
+    {
+        GameGpuPreferences.SaveGameList(games.Rows.Cast<DataGridViewRow>()
+            .Select(x => x.Cells["Path"].Value as string ?? ""));
     }
 
     private static void AddButton(FlowLayoutPanel parent, string text, Action action)
@@ -151,23 +174,21 @@ internal sealed class GamingHardwarePage : UserControl
         {
             try
             {
-                if (games.Rows.Cast<DataGridViewRow>().Any(x =>
-                    string.Equals(x.Cells["Path"].Value as string, path, StringComparison.OrdinalIgnoreCase)))
-                    continue;
-                string? value = GameGpuPreferences.Read(path);
-                int row = games.Rows.Add(false, Path.GetFileNameWithoutExtension(path), path,
-                    GameGpuPreferences.Label(value), GameGpuPreferences.Label(value));
-                games.Rows[row].Cells["Path"].ToolTipText = path;
+                AddGameRow(path);
             }
             catch (Exception ex) { MessageBox.Show(this, Path.GetFileName(path) + ": " + ex.Message, "追加できません"); }
         }
-        info.Text = games.Rows.Count + "件のゲームを登録中（アプリを閉じると一覧はクリアされます。Windowsへの設定は残ります）。";
+        try { SaveGameRows(); }
+        catch (Exception ex) { info.Text = "ゲーム一覧の保存に失敗しました: " + ex.Message; return; }
+        info.Text = games.Rows.Count + "件のゲームを登録中。ゲーム一覧はこのPC内に保存されます。";
     }
 
     private void RemoveSelected()
     {
         foreach (DataGridViewRow row in games.SelectedRows.Cast<DataGridViewRow>().ToArray())
             games.Rows.Remove(row);
+        try { SaveGameRows(); }
+        catch (Exception ex) { info.Text = "ゲーム一覧の保存に失敗しました: " + ex.Message; }
     }
 
     private void RefreshGameRow(DataGridViewRow row)
