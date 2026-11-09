@@ -15,9 +15,10 @@ internal static class GameDiscovery
         var all = new List<Candidate>();
         try { Steam(all); } catch { }
         try { Epic(all); } catch { }
+        try { all.AddRange(GeneralGameDiscovery.Find()); } catch { }
         return all.Where(x => File.Exists(x.Exe))
             .GroupBy(x => x.Exe, StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.First()).Take(150)
+            .Select(x => x.OrderBy(y => y.Ambiguous).First()).Take(300)
             .OrderBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
@@ -167,6 +168,7 @@ internal static class GameDiscovery
         const string vdf = "\"name\" \"Example\" \"installdir\" \"ExampleGame\"";
         return GetVdf(vdf, "name") == "Example" &&
             GetVdf(vdf, "installdir") == "ExampleGame" &&
-            IsHelper("EasyAntiCheat_Setup") && !IsHelper("game-win64-shipping");
+            IsHelper("EasyAntiCheat_Setup") && !IsHelper("game-win64-shipping") &&
+            GeneralGameDiscovery.VerifyContract();
     }
 }
