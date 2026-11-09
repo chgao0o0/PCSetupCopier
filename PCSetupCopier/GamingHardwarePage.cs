@@ -17,6 +17,15 @@ internal sealed class GamingHardwarePage : UserControl
         Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
         GridLines = true, HideSelection = false
     };
+    private readonly ComboBox monitorChoice = new() {
+        Width = 195, DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly ComboBox refreshChoice = new() {
+        Width = 95, DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly Button changeRefresh = new() {
+        Text = "選択したHzに変更", AutoSize = true
+    };
     private readonly Button restore = new() { Text = "前回のGPU設定を復元", AutoSize = true };
     private readonly Label info = new() {
         Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
@@ -31,7 +40,7 @@ internal sealed class GamingHardwarePage : UserControl
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 165));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         layout.Controls.Add(new Label {
@@ -46,12 +55,28 @@ internal sealed class GamingHardwarePage : UserControl
         displays.Columns.Add("補足", 290);
         layout.Controls.Add(displays, 0, 1);
 
-        var commands = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        AddButton(commands, "ゲームを自動検出", DiscoverGames);
-        AddButton(commands, "exeを手動追加", AddGames);
-        AddButton(commands, "選択行を削除", RemoveSelected);
-        AddButton(commands, "診断を更新", RefreshAll);
-        AddButton(commands, "詳細ディスプレイ設定", OpenAdvancedDisplay);
+        var commands = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
+            ColumnCount = 1 };
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        var gameActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        AddButton(gameActions, "Steam / Epicを自動検出", DiscoverGames);
+        AddButton(gameActions, "exeを手動追加", AddGames);
+        AddButton(gameActions, "選択行を削除", RemoveSelected);
+        AddButton(gameActions, "診断を更新", RefreshAll);
+        commands.Controls.Add(gameActions, 0, 0);
+        var monitorActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        monitorActions.Controls.Add(new Label { Text = "画面", AutoSize = true,
+            Margin = new Padding(4, 10, 5, 0) });
+        monitorActions.Controls.Add(monitorChoice);
+        monitorActions.Controls.Add(new Label { Text = "変更後", AutoSize = true,
+            Margin = new Padding(14, 10, 5, 0) });
+        monitorActions.Controls.Add(refreshChoice);
+        monitorActions.Controls.Add(changeRefresh);
+        AddButton(monitorActions, "Windowsの詳細ディスプレイ設定", OpenAdvancedDisplay);
+        monitorChoice.SelectedIndexChanged += (_, _) => UpdateRefreshChoices();
+        changeRefresh.Click += (_, _) => ApplyRefresh();
+        commands.Controls.Add(monitorActions, 0, 1);
         layout.Controls.Add(commands, 0, 2);
 
         games.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Apply", HeaderText = "適用", FillWeight = 40 });
@@ -128,10 +153,59 @@ internal sealed class GamingHardwarePage : UserControl
         catch (Exception e) { MessageBox.Show("Windowsのディスプレイ設定を開けません: " + e.Message); }
     }
 
+    private void UpdateRefreshChoices()
+    {
+        refreshChoice.Items.Clear();
+        changeRefresh.Enabled = false;
+        if (monitorChoice.SelectedItem is not DisplayMonitorItem item) return;
+        foreach (var hz in item.Value.Choices.Select(x => x.Hz))
+            refreshChoice.Items.Add(hz);
+        int index = refreshChoice.Items.IndexOf(item.Value.CurrentHz);
+        refreshChoice.SelectedIndex = index >= 0 ? index : refreshChoice.Items.Count > 0 ? 0 : -1;
+        changeRefresh.Enabled = refreshChoice.SelectedItem is int;
+    }
+
+    private sealed record DisplayMonitorItem(DisplayRefreshManager.Monitor Value)
+    {
+        public override string ToString() => Value.Label + " (" + Value.Id + ")";
+    }
+
+    private void ApplyRefresh()
+    {
+        if (monitorChoice.SelectedItem is not DisplayMonitorItem monitor ||
+            refreshChoice.SelectedItem is not int hz) return;
+        try
+        {
+            if (MessageBox.Show(this,
+                monitor.Value.Label + " のリフレッシュレートを " + hz +
+                "Hzに一時変更します。\n画面が正常に映らない場合は15秒後に自動復元します。\n" +
+                "ただしPCのフリーズや電源断では復元できない可能性があります。続行しますか？",
+                "ディスプレイ設定の変更", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+                != DialogResult.Yes) return;
+            string result = DisplayRefreshManager.ApplyWithConfirmation(this, monitor.Value, hz);
+            RefreshAll();
+            MessageBox.Show(this, result, "リフレッシュレート", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            RefreshAll();
+            MessageBox.Show(this, ex.Message, "リフレッシュレート変更失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void RefreshAll()
     {
         try
         {
+            string? previouslyChosen = (monitorChoice.SelectedItem as DisplayMonitorItem)?.Value.Id;
+            monitorChoice.Items.Clear();
+            var activeMonitors = DisplayRefreshManager.Read();
+            foreach (var item in activeMonitors)
+                monitorChoice.Items.Add(new DisplayMonitorItem(item));
+            int monitorIndex = activeMonitors.ToList().FindIndex(x => x.Id == previouslyChosen);
+            if (monitorIndex < 0) monitorIndex = 0;
+            if (monitorChoice.Items.Count > 0) monitorChoice.SelectedIndex = monitorIndex;
             displays.Items.Clear();
             foreach (var screen in Screen.AllScreens)
             {
