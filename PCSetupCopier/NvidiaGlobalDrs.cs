@@ -132,10 +132,10 @@ internal static class NvidiaGlobalDrs
                 if (Marshal.ReadInt32(data, TypeOffset) != 0)
                     throw new InvalidDataException("NVIDIA設定がDWORD形式ではありません: " + item.Title);
                 uint value = unchecked((uint)Marshal.ReadInt32(data, CurrentValueOffset));
-                // Base-profile DRS setting can inherit predefined values. Only settings
-                // with location=CURRENT_PROFILE_LOCATION and predefined flag=0 are user overrides.
-                bool explicitValue = Marshal.ReadInt32(data, LocationOffset) == 0 &&
-                    Marshal.ReadInt32(data, IsExplicitOffset) == 0;
+                // A base-profile override may be reported with BASE_PROFILE_LOCATION.
+                // The predefined flag, not the location enum, distinguishes its origin.
+                // Incorrectly marking a custom value as inherited would delete it on restore.
+                bool explicitValue = Marshal.ReadInt32(data, IsExplicitOffset) == 0;
                 return new State(item.Key, value, explicitValue);
             }
             finally { Marshal.FreeHGlobal(data); }
