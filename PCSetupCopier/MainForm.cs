@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M5.1 (ランチャー横断ゲーム検索・Hz設定)";
+        Text = "PC Setup Copier — M5.2 (FPS・バランスプリセット・NVIDIAガイド)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -346,6 +346,11 @@ internal sealed class MainForm : Form
         };
         tipsPage.Controls.Add(new GamingChecklistPage { Dock = DockStyle.Fill });
         tabs.TabPages.Add(tipsPage);
+        var nvidiaPage = new TabPage("NVIDIA設定") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        nvidiaPage.Controls.Add(new NvidiaSettingsPage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(nvidiaPage);
         tabs.TabPages.Add(copyPage);
         tabs.TabPages.Add(backupPage);
         grid.Dock = DockStyle.Fill;
