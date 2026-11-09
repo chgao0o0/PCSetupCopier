@@ -9,7 +9,8 @@ internal sealed record UserPreset(
     bool? IncludeMouse = null, bool? IncludePower = null,
     Guid? PowerPlanId = null, string? ComputerName = null,
     bool? IncludeGameMode = null, bool? GameModeDesired = null,
-    bool? IncludeCapture = null, bool? CaptureDesired = null);
+    bool? IncludeCapture = null, bool? CaptureDesired = null,
+    bool? IncludeGameBarCapture = null, bool? GameBarCaptureDesired = null);
 
 internal static class PresetStore
 {
@@ -53,7 +54,8 @@ internal static class PresetStore
         string name, bool mouseAcceleration, bool includeMouse,
         bool includePower, Guid? powerPlanId, string? computerName,
         bool includeGameMode = false, bool gameModeDesired = false,
-        bool includeCapture = false, bool captureDesired = false)
+        bool includeCapture = false, bool captureDesired = false,
+        bool includeGameBarCapture = false, bool gameBarCaptureDesired = false)
     {
         if (includePower && (powerPlanId == null || powerPlanId == Guid.Empty ||
             string.IsNullOrWhiteSpace(computerName)))
@@ -66,7 +68,8 @@ internal static class PresetStore
         int existing = list.FindIndex(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
         var entry = new UserPreset(name, mouseAcceleration, DateTimeOffset.Now,
             includeMouse, includePower, powerPlanId, computerName,
-            includeGameMode, gameModeDesired, includeCapture, captureDesired);
+            includeGameMode, gameModeDesired, includeCapture, captureDesired,
+            includeGameBarCapture, gameBarCaptureDesired);
         if (existing >= 0) list[existing] = entry;
         else
         {
@@ -112,7 +115,7 @@ internal static class PresetStore
             catch (ArgumentException) { }
             var sample = new UserPreset("Gaming", false, DateTimeOffset.UnixEpoch,
                 true, true, Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e"), "Test-PC",
-                true, true, false, false);
+                true, true, false, false, true, false);
             if (JsonSerializer.Deserialize<UserPreset>(JsonSerializer.Serialize(sample)) != sample)
                 return false;
             // Old mouse-only presets must remain loadable and never auto-select power.
@@ -120,7 +123,8 @@ internal static class PresetStore
             var old = JsonSerializer.Deserialize<UserPreset>(legacy);
             return old?.MouseAcceleration == true && old.IncludeMouse == null &&
                    old.IncludePower == null && old.PowerPlanId == null &&
-                   old.IncludeGameMode == null && old.IncludeCapture == null;
+                   old.IncludeGameMode == null && old.IncludeCapture == null &&
+                   old.IncludeGameBarCapture == null;
         }
         catch { return false; }
     }
