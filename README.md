@@ -1,5 +1,14 @@
 # PC Setup Copier
 
+## M2.7 — Card-based free settings
+
+- The Free Settings screen presents mouse acceleration and the machine's available power plans in separate cards, with integrated selection controls. Unsupported features are visible but disabled.
+- A fixed footer shows which settings are selected and keeps the batch-apply button accessible while the cards scroll.
+- A dedicated confirmation dialog summarizes the before/after values in friendly terms. The previously implemented BatchSettingsApplier still makes the changes, creating backups, verifying results, and attempting rollback on failure.
+- Preset controls have been moved into a separate tab. Loading a preset only changes the selected mouse preference and does not modify Windows settings; existing saved presets remain intact.
+- Diagnosis, JSON copy, the independent mouse/power restore actions and GitHub self-update are preserved.
+- **Scope:** Only mouse acceleration and local power-plan selection can be applied. Windows security settings are never written. Live UI layout and batch rollback must still be tested on Windows hardware.
+
 ## M2.6 — Unified batch apply and update-check optimization
 
 - The Free Settings tab now has a single **選択した設定を一括適用** button and explicit selection checkboxes for mouse acceleration and local installed power plans. Individual apply actions are hidden; the user confirms a combined change preview once.
@@ -51,7 +60,7 @@ The target architecture is Windows 10 and 11 with explicit per-setting capabilit
 
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M2.6 (selectable batch apply and faster update check)
+## Current release: M2.7 (responsive setting cards and fixed apply bar)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
