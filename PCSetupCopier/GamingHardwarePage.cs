@@ -41,7 +41,7 @@ internal sealed class GamingHardwarePage : UserControl
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 165));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 174));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         layout.Controls.Add(new Label {
@@ -58,16 +58,22 @@ internal sealed class GamingHardwarePage : UserControl
 
         var commands = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
             ColumnCount = 1 };
-        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-        var gameActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
+        var gameActions = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true,
+            Margin = new Padding(0, 4, 0, 2)
+        };
         AddButton(gameActions, "ゲームをまとめて自動検出", DiscoverGames);
         AddButton(gameActions, "検索フォルダー追加", AddSearchFolder);
         AddButton(gameActions, "exeを手動追加", AddGames);
         AddButton(gameActions, "選択行を削除", RemoveSelected);
         AddButton(gameActions, "診断を更新", RefreshAll);
         commands.Controls.Add(gameActions, 0, 1);
-        var monitorActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var monitorActions = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true,
+            Margin = new Padding(0, 0, 0, 4)
+        };
         monitorActions.Controls.Add(new Label { Text = "画面", AutoSize = true,
             Margin = new Padding(4, 10, 5, 0) });
         monitorActions.Controls.Add(monitorChoice);
@@ -144,7 +150,7 @@ internal sealed class GamingHardwarePage : UserControl
 
     private static void AddButton(FlowLayoutPanel parent, string text, Action action)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 34 };
+        var b = new Button { Text = text, AutoSize = true, Height = 34, Margin = new Padding(3, 3, 6, 3) };
         b.Click += (_, _) => action();
         parent.Controls.Add(b);
     }
