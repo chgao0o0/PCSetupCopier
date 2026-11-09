@@ -11,18 +11,20 @@ internal sealed class MainForm : Form
     private PcSnapshot? current;
     private PcSnapshot? source;
     private readonly Button updateButton = new();
+    private readonly Button applyButton = new();
+    private readonly Button restoreButton = new();
     private readonly HashSet<string> selectedIds = new(StringComparer.Ordinal);
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M1.8 (診断・比較・更新)";
+        Text = "PC Setup Copier — M2.0 (診断・比較・選択適用)";
         Size = new Size(1250, 720);
         MinimumSize = new Size(940, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Yu Gothic UI", 10f);
         var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 55,
             Font = new Font("Yu Gothic UI", 19f, FontStyle.Bold), Padding = new Padding(20, 10, 0, 0) };
-        var notice = new Label { Text = "ゲーム関連11項目を診断・JSON比較します。設定は変更しません。",
+        var notice = new Label { Text = "ゲーム関連11項目を診断。M2ではマウス加速のみ選択適用・復元可能です。",
             Dock = DockStyle.Top, Height = 35, ForeColor = Color.DarkGreen, Padding = new Padding(20, 4, 0, 0) };
         device.Dock = DockStyle.Top;
         device.Height = 52;
@@ -38,6 +40,18 @@ internal sealed class MainForm : Form
         updateButton.MinimumSize = new Size(130, 36);
         updateButton.Click += async (_, _) => await UpdateAsync();
         actions.Controls.Add(updateButton);
+        applyButton.Text = "選択項目を適用";
+        applyButton.AutoSize = true;
+        applyButton.MinimumSize = new Size(135, 36);
+        applyButton.Click += (_, _) => ApplySelected();
+        actions.Controls.Add(applyButton);
+        restoreButton.Text = "マウス設定を復元";
+        restoreButton.AutoSize = true;
+        restoreButton.MinimumSize = new Size(155, 36);
+        restoreButton.Click += (_, _) => RestoreMouse();
+        actions.Controls.Add(restoreButton);
+        actions.WrapContents = true;
+        actions.Height = 94;
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -147,7 +161,7 @@ internal sealed class MainForm : Form
                 item.Value == other.Value ? "一致" : "差分あり";
             int index = grid.Rows.Add(selectedIds.Contains(item.Id), item.DisplayName, item.Value ?? "—",
                 other?.Value ?? "—", state, item.Description);
-            // Selection is only a preview. No Windows setting writes are present.
+            // Only mouse acceleration has an apply handler; all other selections are comparison-only.
             grid.Rows[index].Tag = item.Id;
             grid.Rows[index].Cells[0].ToolTipText = other == null
                 ? "コピー元JSONを選んでいないため、適用候補としてはまだ比較できません。"
@@ -174,9 +188,70 @@ internal sealed class MainForm : Form
         int count = grid.Rows.Cast<DataGridViewRow>().Count(r => r.Cells[0].Value is true);
         int ready = grid.Rows.Cast<DataGridViewRow>().Count(r =>
             r.Cells[0].Value is true && r.Cells[4].Value is string comparison && comparison is "一致" or "差分あり");
-        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（変更は行いません）" +
+        bool mouseSelected = selectedIds.Contains("mouse_acceleration");
+        bool mouseReady = mouseSelected && source?.Settings.FirstOrDefault(x => x.Id == "mouse_acceleration") is
+            { Status: "取得済み", Value: not null } mouse &&
+            SettingsApplier.TryParse(mouse.Value, out _);
+        applyButton.Enabled = mouseReady && count == 1;
+        restoreButton.Enabled = SettingsApplier.CanRestore;
+        status.Text = $"診断: {current.Settings.Count}項目 / 選択: {count} / 比較可能: {ready}（適用対応: マウス加速のみ）" +
             (source == null ? " / コピー元JSON未選択" : $" / コピー元: {source.ComputerName}") +
-            " / 未対応・未取得項目は適用不可";
+            " / ほかの10項目は読み取り・比較専用";
+    }
+
+    private void ApplySelected()
+    {
+        if (source == null || !selectedIds.SetEquals(["mouse_acceleration"]))
+        {
+            MessageBox.Show(this, "M2で適用できるのはマウス加速のみです。チェックは1項目だけ選んでください。");
+            return;
+        }
+        var item = source.Settings.FirstOrDefault(x => x.Id == "mouse_acceleration");
+        if (item?.Status != "取得済み" || !SettingsApplier.TryParse(item.Value, out int[] target))
+        {
+            MessageBox.Show(this, "コピー元のマウス加速設定が取得済みではないか、値が不正です。");
+            return;
+        }
+        try
+        {
+            var previous = SettingsApplier.Read();
+            if (previous.SequenceEqual(target))
+            {
+                MessageBox.Show(this, "すでにコピー元と同じ設定です。");
+                return;
+            }
+            string Format(int[] v) => $"Threshold1={v[0]} / Threshold2={v[1]} / Accel={v[2]}";
+            if (MessageBox.Show(this,
+                "マウス加速の設定だけを変更します。\\n\\n現在: " + Format(previous) +
+                "\\nコピー元: " + Format(target) +
+                "\\n\\n変更前の値をバックアップし、適用後に検証します。よろしいですか？",
+                "設定の適用確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            string result = SettingsApplier.Apply(target);
+            Scan();
+            MessageBox.Show(this, result, "設定の適用", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, "適用失敗: " + ex.Message, "設定の適用", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RestoreMouse()
+    {
+        if (MessageBox.Show(this, "バックアップに保存されたマウス加速設定に戻しますか？",
+            "復元確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            string result = SettingsApplier.Restore();
+            Scan();
+            MessageBox.Show(this, result, "復元", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Scan();
+            MessageBox.Show(this, "復元失敗: " + ex.Message, "復元", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void Import()
