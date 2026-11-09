@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M6.0 (NVIDIAグローバル設定自動適用)";
+        Text = "PC Setup Copier — M6.1 (NVIDIA安全強化・診断レポート)";
         Size = new Size(1080, 740);
         MinimumSize = new Size(780, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -387,6 +387,11 @@ internal sealed class MainForm : Form
         };
         nvidiaGlobal.Controls.Add(new NvidiaGlobalPage { Dock = DockStyle.Fill });
         tabs.TabPages.Add(nvidiaGlobal);
+        var reportPage = new TabPage("ゲーミング診断レポート") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        reportPage.Controls.Add(new GamingDiagnosticsPage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(reportPage);
         tabs.TabPages.Add(copyPage);
         tabs.TabPages.Add(backupPage);
         grid.Dock = DockStyle.Fill;
