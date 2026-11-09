@@ -352,8 +352,14 @@ internal sealed class MainForm : Form
     private void ResizeCards()
     {
         int width = Math.Max(330, cardList.ClientSize.Width - cardList.Padding.Horizontal - 28);
+        int cardWidth = Math.Clamp(width, 340, 800);
+        int left = Math.Max(5, (cardList.ClientSize.Width - cardWidth - 12) / 2);
         foreach (Control card in cardList.Controls)
-            if (card is SettingCard settingCard) settingCard.SetCardWidth(width);
+        {
+            if (card is not SettingCard settingCard) continue;
+            settingCard.SetCardWidth(cardWidth);
+            settingCard.Margin = new Padding(left, 5, 5, 10);
+        }
     }
 
     private void UpdateBatchSummary()
