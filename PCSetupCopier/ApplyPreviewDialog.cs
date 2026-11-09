@@ -23,6 +23,11 @@ internal sealed class ApplyPreviewDialog : Form
         if (plan.ChangePower)
             changes.Add("電源プラン\n  現在: " + (powerOld ?? plan.OriginalPower.ToString()) +
                 "\n  変更後: " + (powerNew ?? plan.DesiredPower.ToString()));
+        if (plan.ChangeGameMode)
+            changes.Add("ゲームモード関連のユーザー設定値\n  現在: " +
+                (plan.OriginalGameMode == null ? "未設定" : plan.OriginalGameMode == 1 ? "オン指定" : "オフ指定") +
+                "\n  変更後: " + (plan.DesiredGameMode == 1 ? "オン指定" : "オフ指定") +
+                "\n  ※ Windows設定画面の実効状態は保証しません。");
         var details = new TextBox {
             Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
             ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
