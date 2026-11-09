@@ -20,6 +20,38 @@ internal static class GameGpuPreferences
         "PCSetupCopier", "Backups");
     private static string LatestPath => Path.Combine(DirectoryPath, "per-game-gpu-latest.json");
     internal static bool CanRestore => File.Exists(LatestPath);
+    private static string FavoritesPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "PCSetupCopier", "Games", "selected-games.json");
+
+    internal static IReadOnlyList<string> LoadGameList()
+    {
+        if (!File.Exists(FavoritesPath)) return [];
+        if (new FileInfo(FavoritesPath).Length > 50_000)
+            throw new InvalidDataException("登録ゲーム一覧が大きすぎます。");
+        string[] games = JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesPath)) ?? [];
+        if (games.Length > 100) throw new InvalidDataException("ゲーム登録数が多すぎます。");
+        return games.Where(x => !string.IsNullOrEmpty(x) &&
+                Path.IsPathFullyQualified(x) && x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                !x.StartsWith(@"\\", StringComparison.Ordinal) && File.Exists(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    internal static void SaveGameList(IEnumerable<string> paths)
+    {
+        var all = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (all.Length > 100) throw new InvalidOperationException("ゲーム登録数は100件までです。");
+        foreach (string path in all) ValidPath(path);
+        string folder = Path.GetDirectoryName(FavoritesPath)!;
+        Directory.CreateDirectory(folder);
+        string temporary = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(all));
+            File.Move(temporary, FavoritesPath, true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
 
     private static string ValidPath(string path)
     {
