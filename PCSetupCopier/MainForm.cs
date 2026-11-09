@@ -220,7 +220,7 @@ internal sealed class MainForm : Form
         };
         presetContent.Controls.Add(new Label { Text = "設定プリセット", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
-        presetContent.Controls.Add(new Label { Text = "マウス加速・電源プランと適用対象スイッチをセットで保存できます。別PCの電源プランは安全に確認します。",
+        presetContent.Controls.Add(new Label { Text = "マウス加速・電源プラン・ゲームモード関連値・録画関連値と、各適用対象スイッチをセットで保存できます。",
             AutoSize = true, MaximumSize = new Size(680, 0), Margin = new Padding(0, 8, 0, 16) });
         var saveRow = new FlowLayoutPanel { Width = 560, Height = 50 };
         saveRow.Controls.Add(presetName);
@@ -411,7 +411,6 @@ internal sealed class MainForm : Form
             freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "加速オフ" : "加速オン")}";
             mouseCard.Current.Text = freeCurrent.Text;
             mouseDesired.Enabled = true;
-            mouseDesired.SelectedIndex = mouse[2] != 0 ? 1 : 0;
             mouseCard.ApplySwitch.Enabled = true;
             
             UpdateBatchSummary();
@@ -435,7 +434,7 @@ internal sealed class MainForm : Form
             gameModeCard.Current.Text = existing == null
                 ? "現在の関連値: 未設定（既定状態は未確認）"
                 : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
-            gameModeDesired.SelectedIndex = existing == 0 ? 0 : 1;
+            // Don't overwrite a pending user choice when re-scanning Windows.
             gameModeCard.ApplySwitch.Enabled = true;
             // Keep the choice explicitly opt-in, even on refresh.
         }
@@ -736,7 +735,9 @@ internal sealed class MainForm : Form
             bool includePower = powerCard.ApplySwitch.IsOn && chosenPower != null;
             PresetStore.Save(name, mouseDesired.SelectedIndex == 1,
                 mouseCard.ApplySwitch.IsOn, includePower,
-                chosenPower?.Id, Environment.MachineName);
+                chosenPower?.Id, Environment.MachineName,
+                gameModeCard.ApplySwitch.IsOn, gameModeDesired.SelectedIndex == 1,
+                captureCard.ApplySwitch.IsOn, captureDesired.SelectedIndex == 1);
             RefreshPresetChoices(name);
             MessageBox.Show(this, "プリセットを保存しました。Windows設定は変更していません。",
                 "プリセット", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -773,6 +774,16 @@ internal sealed class MainForm : Form
                 }
             }
             powerCard.ApplySwitch.IsOn = powerAvailable;
+            if (preset.IncludeGameMode.HasValue)
+            {
+                gameModeDesired.SelectedIndex = preset.GameModeDesired == true ? 1 : 0;
+                gameModeCard.ApplySwitch.IsOn = preset.IncludeGameMode.Value && gameModeCard.ApplySwitch.Enabled;
+            }
+            if (preset.IncludeCapture.HasValue)
+            {
+                captureDesired.SelectedIndex = preset.CaptureDesired == true ? 1 : 0;
+                captureCard.ApplySwitch.IsOn = preset.IncludeCapture.Value && captureCard.ApplySwitch.Enabled;
+            }
             tabs.SelectedIndex = 1;
             presetName.Text = preset.Name;
             UpdateBatchSummary();
