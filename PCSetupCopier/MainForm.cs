@@ -61,6 +61,11 @@ internal sealed class MainForm : Form
     private readonly TabControl tabs = new() { Dock = DockStyle.Fill };
     private readonly Label device = new();
     private readonly Label status = new();
+    private bool initialMouseChoiceLoaded;
+    private bool initialPowerChoiceLoaded;
+    private bool initialGameChoiceLoaded;
+    private bool initialCaptureChoiceLoaded;
+    private bool initialGameBarChoiceLoaded;
     private PcSnapshot? current;
     private PcSnapshot? source;
     private readonly Button updateButton = new();
@@ -435,8 +440,12 @@ internal sealed class MainForm : Form
             freeCurrent.Text = $"現在: {(mouse[2] == 0 ? "加速オフ" : "加速オン")}";
             mouseCard.Current.Text = freeCurrent.Text;
             mouseDesired.Enabled = true;
+            if (!initialMouseChoiceLoaded)
+            {
+                mouseDesired.SelectedIndex = mouse[2] != 0 ? 1 : 0;
+                initialMouseChoiceLoaded = true;
+            }
             mouseCard.ApplySwitch.Enabled = true;
-            
             UpdateBatchSummary();
         }
         catch (Exception ex)
@@ -460,6 +469,11 @@ internal sealed class MainForm : Form
                 : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
             // Don't overwrite a pending user choice when re-scanning Windows.
             gameModeCard.ApplySwitch.Enabled = true;
+            if (!initialGameChoiceLoaded)
+            {
+                if (existing.HasValue) gameModeDesired.SelectedIndex = existing.Value;
+                initialGameChoiceLoaded = true;
+            }
             // Keep the choice explicitly opt-in, even on refresh.
         }
         catch (Exception ex)
@@ -494,6 +508,11 @@ internal sealed class MainForm : Form
             captureCard.Current.Text = existing == null
                 ? "現在の関連値: 未設定（既定状態は未確認）"
                 : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
+            if (!initialCaptureChoiceLoaded)
+            {
+                if (existing.HasValue) captureDesired.SelectedIndex = existing.Value;
+                initialCaptureChoiceLoaded = true;
+            }
             captureCard.ApplySwitch.Enabled = true;
         }
         catch (Exception ex)
@@ -528,6 +547,11 @@ internal sealed class MainForm : Form
             gameBarCaptureCard.Current.Text = existing == null
                 ? "現在の関連値: 未設定（既定状態は未確認）"
                 : "現在の関連値: " + (existing == 1 ? "オン指定" : "オフ指定");
+            if (!initialGameBarChoiceLoaded)
+            {
+                if (existing.HasValue) gameBarCaptureDesired.SelectedIndex = existing.Value;
+                initialGameBarChoiceLoaded = true;
+            }
             gameBarCaptureCard.ApplySwitch.Enabled = true;
         }
         catch (Exception ex)
@@ -607,13 +631,18 @@ internal sealed class MainForm : Form
         {
             Guid active = PowerPlanManager.ReadActive();
             var available = PowerPlanManager.Installed();
+            Guid? priorChoice = initialPowerChoiceLoaded &&
+                powerChoices.SelectedItem is PowerPlanManager.Plan oldChoice
+                    ? oldChoice.Id : null;
             powerChoices.BeginUpdate();
             try
             {
                 powerChoices.Items.Clear();
                 foreach (var plan in available) powerChoices.Items.Add(plan);
-                int index = available.ToList().FindIndex(x => x.Id == active);
+                int index = available.ToList().FindIndex(x => x.Id == (priorChoice ?? active));
+                if (index < 0) index = available.ToList().FindIndex(x => x.Id == active);
                 if (index >= 0) powerChoices.SelectedIndex = index;
+                initialPowerChoiceLoaded = true;
             }
             finally { powerChoices.EndUpdate(); }
             powerCurrent.Text = "現在: " +
