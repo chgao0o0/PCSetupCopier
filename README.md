@@ -1,3 +1,10 @@
+## M5.1 — Launcher-independent game discovery
+
+- The automatic discovery dialog now combines Steam/Epic manifests with Windows installed-program registration (often including EA app, Battle.net, Ubisoft Connect, GOG and standalone installers), Start Menu/Desktop shortcuts, common game directories on fixed drives and up to 12 user-selected additional game folders.
+- All additional sources generate **unverified candidates** that start unchecked. The user must inspect the path and explicitly select what to register. Discovery never edits game files, launches them, or applies Windows GPU preferences; applying the latter remains a separate, confirmed operation.
+- Detection is bounded to limit disk IO and runs off the UI thread. It intentionally does not crawl entire drives, arbitrary directories, network shares or WindowsApps protected app packages. Store-managed MSIX/Xbox Game Pass games and games with nonstandard launch paths may still need manual registration.
+- Automatic identification of **every installed game** is not technically guaranteed; especially launcher stubs, non-exe entries, and multiple candidate exe files need human review.
+
 ## M5.0 — Gaming PC discovery, refresh rate and settings review
 
 - **Steam + Epic game discovery**: reads local installation manifests and offers executable candidates. Explicit per-game confirmation is required; merely detecting/adding a game never writes a Windows setting. Ambiguous executable matches are left unchecked. Xbox/Game Pass installations and nonstandard launchers remain manual.
