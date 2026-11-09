@@ -1,5 +1,14 @@
 # PC Setup Copier
 
+## M2.5 — Installed power plans and responsive UI
+
+- The Free Settings tab now lists only power schemes already installed on the local PC and shows the currently active GUID.
+- Only confirmed local schemes can be activated, with explicit confirmation, a timestamped backup of the previous GUID, read-back verification and attempted rollback. Restore is separate on the Backup & Restore tab. Power plans are not copied blindly between different PCs.
+- The change uses the documented Windows powercfg /list and /setactive operations and the PowerGetActiveScheme API. It does **not** import/create/delete schemes, edit individual power parameters, modify Windows Power Mode or elevate permissions.
+- Mouse-only preset storage and copy-from-JSON behavior remain unchanged. Game Mode and other settings remain read-only.
+- Window minimum size is reduced to support smaller displays; remaining layout polish needs actual device testing.
+- This implementation is ready for Windows build verification but **power-plan apply/restore requires explicit local test** before use on a friend's computer.
+
 ## M2.4 — Named preferences and compact diagnostics
 
 - The Diagnostics tab uses a sortable-by-reading compact table instead of a long continuous text dump. All 11 existing diagnostic results remain read-only.
@@ -34,7 +43,7 @@ The target architecture is Windows 10 and 11 with explicit per-setting capabilit
 
 Windows 11 gaming-related settings diagnostic and comparison app, built with C# WinForms and .NET 8.
 
-## Current release: M2.4 (mouse acceleration apply only)
+## Current release: M2.5 (mouse acceleration and local power-plan apply)
 
 - Diagnose 11 gaming-related settings: refresh rate, Game Mode, power plan, graphics settings, capture, FPS limit, mouse acceleration, HAGS, windowed optimization, VRR, per-app GPU preferences.
 - Show current value, read status, and explanation.
