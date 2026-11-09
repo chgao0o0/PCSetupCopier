@@ -132,8 +132,18 @@ internal static class PowerPlanManager
         return "バックアップの電源プランに復元しました。";
     }
 
-    internal static bool VerifyContract() =>
-        Guid.TryParse("381b4222-f694-41f0-9685-ff5bb260df2e", out _);
+    // Runs on the Windows CI runner without changing its power settings.
+    internal static bool VerifyContract()
+    {
+        try
+        {
+            var plans = Installed();
+            var active = ReadActive();
+            return plans.Count > 0 && plans.Any(x => x.Id == active) &&
+                   plans.All(x => x.Id != Guid.Empty);
+        }
+        catch { return false; }
+    }
 
     [DllImport("powrprof.dll")]
     private static extern uint PowerGetActiveScheme(IntPtr userRoot, out IntPtr policy);
