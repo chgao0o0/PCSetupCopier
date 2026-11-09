@@ -236,10 +236,49 @@ internal static class UpdateManager
             }
             catch (ArgumentException) { } // Already exited.
 
-            File.Copy(targetExe, backupExe, true);
+            // Another instance or antivirus scanner may still hold the old executable.
+            // Rename the old binary to its backup before copying, never overwrite an in-use image.
+            var blockers = Process.GetProcessesByName("PCSetupCopier")
+                .Where(p => p.Id != Environment.ProcessId)
+                .ToArray();
+            try
+            {
+                foreach (var blocker in blockers)
+                {
+                    try
+                    {
+                        if (!blocker.HasExited &&
+                            string.Equals(blocker.MainModule?.FileName, targetExe, StringComparison.OrdinalIgnoreCase))
+                            throw new IOException($"別のPC Setup Copierが起動中です (PID {blocker.Id})。すべてのアプリ画面を閉じて再実行してください。");
+                    }
+                    catch (System.ComponentModel.Win32Exception) { }
+                    catch (InvalidOperationException) { }
+                }
+            }
+            finally { foreach (var blocker in blockers) blocker.Dispose(); }
+
+            // Retry temporary sharing violations; never forcibly terminate another process.
+            Exception? lastError = null;
+            for (int attempt = 0; attempt < 25; attempt++)
+            {
+                try
+                {
+                    File.Move(targetExe, backupExe, true);
+                    moved = true;
+                    lastError = null;
+                    break;
+                }
+                catch (IOException ex)
+                {
+                    lastError = ex;
+                    await Task.Delay(500);
+                }
+            }
+            if (!moved)
+                throw new IOException("旧exeが使用中でバックアップへ移動できません。別の起動中インスタンスを閉じてください。", lastError);
+
             if (File.Exists(targetMarker)) File.Copy(targetMarker, backupMarker, true);
             else if (File.Exists(backupMarker)) File.Delete(backupMarker);
-            moved = true;
             File.Copy(sourceExe, targetExe, true);
             File.Copy(sourceMarker, targetMarker, true);
 
@@ -260,7 +299,8 @@ internal static class UpdateManager
             {
                 if (moved)
                 {
-                    File.Copy(backupExe, targetExe, true);
+                    if (File.Exists(targetExe)) File.Delete(targetExe);
+                    File.Move(backupExe, targetExe);
                     if (File.Exists(backupMarker)) File.Copy(backupMarker, targetMarker, true);
                 }
             }
