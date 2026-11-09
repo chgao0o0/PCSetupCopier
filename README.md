@@ -1,3 +1,9 @@
+## M6.1 — Safer NVIDIA profile handling and diagnostics (no gaming PC required to stage)
+
+- New **ゲーミング診断レポート** tab: on-demand, read-only summary of Windows gaming preferences, detected monitors and enumerated refresh rates, NVIDIA global settings when supported, saved template counts and backup presence. Copy text or save as UTF-8 TXT for offline comparison; the report does not include executable paths or Windows user names.
+- NVIDIA global DRS safety: reject changes to unknown explicit profile values because they cannot be reliably restored through the known-value editor; avoid treating BASE_PROFILE_LOCATION as inherited when determining whether an original NVIDIA value was explicitly set; attempt rollback on any driver save failure and verify restored explicit settings.
+- No background automation, no change on preset selection, and no security control changes. NVIDIA driver I/O still needs testing on a supported gaming PC. A successful CI/package preflight exercises compilation and pure consistency checks, not live GPU driver functionality.
+
 ## M5.2 — One-click *staging* for game presets and NVIDIA guidance
 
 - On the existing **プリセット** tab, choose one of four built-in templates: FPS重視（対戦ゲーム）, バランス重視, 画質・配信重視, 最小変更（安全）.
