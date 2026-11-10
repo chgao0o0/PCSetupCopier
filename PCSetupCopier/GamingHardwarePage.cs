@@ -40,8 +40,8 @@ internal sealed class GamingHardwarePage : UserControl
             Padding = new Padding(16, 10, 16, 10) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 165));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 174));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 135));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 158));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         layout.Controls.Add(new Label {
@@ -58,8 +58,8 @@ internal sealed class GamingHardwarePage : UserControl
 
         var commands = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
             ColumnCount = 1 };
-        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
-        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        commands.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         var gameActions = new FlowLayoutPanel {
             Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true,
             Margin = new Padding(0, 4, 0, 2)
@@ -102,7 +102,18 @@ internal sealed class GamingHardwarePage : UserControl
                 games.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         games.DataError += (_, e) => { e.ThrowException = false; info.Text = "不正なGPU設定が選択されています。"; };
-        layout.Controls.Add(games, 0, 3);
+        var gameArea = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+        gameArea.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+        gameArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var gameBatchTools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+            AutoScroll = true };
+        AddButton(gameBatchTools, "登録ゲーム40件まで選択", () => StageAllGames(2));
+        AddButton(gameBatchTools, "選択行を高パフォーマンス候補", () => StageSelectedGames(2));
+        AddButton(gameBatchTools, "選択行をWindows標準候補", () => StageSelectedGames(0));
+        AddButton(gameBatchTools, "適用チェック全解除", ClearGameChecks);
+        gameArea.Controls.Add(gameBatchTools, 0, 0);
+        gameArea.Controls.Add(games, 0, 1);
+        layout.Controls.Add(gameArea, 0, 3);
 
         var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -386,6 +397,49 @@ internal sealed class GamingHardwarePage : UserControl
             games.Rows.Remove(row);
         try { SaveGameRows(); }
         catch (Exception ex) { info.Text = "ゲーム一覧の保存に失敗しました: " + ex.Message; }
+    }
+
+    private void ClearGameChecks()
+    {
+        games.EndEdit();
+        foreach (DataGridViewRow row in games.Rows)
+            row.Cells["Apply"].Value = false;
+        info.Text = "適用対象を解除しました。Windowsの設定は変更していません。";
+    }
+
+    private void StageSelectedGames(int value)
+    {
+        games.EndEdit();
+        string target = value == 2 ? "高パフォーマンスを優先" : "Windowsに任せる";
+        int count = 0;
+        foreach (DataGridViewRow row in games.SelectedRows)
+        {
+            row.Cells["Apply"].Value = true;
+            row.Cells["Desired"].Value = target;
+            count++;
+        }
+        info.Text = count + "件を候補にセットしました。一括適用まではWindowsを変更しません。";
+    }
+
+    private void StageAllGames(int value)
+    {
+        games.EndEdit();
+        if (games.Rows.Count == 0)
+        {
+            info.Text = "登録済みのゲームがありません。まず自動検出してください。";
+            return;
+        }
+        int count = 0;
+        string target = value == 2 ? "高パフォーマンスを優先" : "Windowsに任せる";
+        foreach (DataGridViewRow row in games.Rows)
+        {
+            // The transactional applier supports at most forty games in one batch.
+            row.Cells["Apply"].Value = count < 40;
+            if (count < 40) row.Cells["Desired"].Value = target;
+            count++;
+        }
+        info.Text = Math.Min(count, 40) + "件を適用候補にしました。Windowsの設定は未変更です。" +
+            (count > 40 ? " 残りは次の一括適用で選択してください。" : "");
     }
 
     private void RefreshGameRow(DataGridViewRow row)
