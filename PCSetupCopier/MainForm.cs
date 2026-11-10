@@ -81,6 +81,7 @@ internal sealed class MainForm : Form
         Dock = DockStyle.Fill, Padding = new Padding(12, 8, 12, 6),
         ForeColor = Color.FromArgb(60, 77, 101), AutoEllipsis = true
     };
+    private readonly NvidiaGlobalPage nvidiaEditor = new();
     private readonly Label device = new();
     private readonly Label status = new();
     private bool initialMouseChoiceLoaded;
@@ -97,7 +98,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M7.5 (NVIDIAかんたん設定移植)";
+        Text = "PC Setup Copier — M8.0 (かんたん設定・丸ごと移植・復元)";
         Size = new Size(1180, 760);
         MinimumSize = new Size(860, 560);
         StartPosition = FormStartPosition.CenterScreen;
@@ -432,7 +433,8 @@ internal sealed class MainForm : Form
         var nvidiaGlobal = new TabPage("NVIDIAグローバル設定") {
             BackColor = Color.FromArgb(248, 250, 253)
         };
-        nvidiaGlobal.Controls.Add(new NvidiaGlobalPage { Dock = DockStyle.Fill });
+        nvidiaEditor.Dock = DockStyle.Fill;
+        nvidiaGlobal.Controls.Add(nvidiaEditor);
         tabs.TabPages.Add(nvidiaGlobal);
         var reportPage = new TabPage("ゲーミング診断レポート") {
             BackColor = Color.FromArgb(248, 250, 253)
@@ -446,6 +448,26 @@ internal sealed class MainForm : Form
         };
         comparePage.Controls.Add(new GamingBaselinePage { Dock = DockStyle.Fill });
         tabs.TabPages.Add(comparePage);
+        var setupPage = new TabPage("かんたん設定・丸ごと移植") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        setupPage.Controls.Add(new GamingSetupPage(
+            StageImportedWindows,
+            nvidiaEditor.StageExternal,
+            StageSetupProfile,
+            () => tabs.SelectedIndex = 1,
+            () => tabs.SelectedIndex = 6) { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(setupPage);
+        var recoveryPage = new TabPage("復元センター") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        recoveryPage.Controls.Add(new RecoveryCenterPage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(recoveryPage);
+        var logsPage = new TabPage("操作・エラーログ") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        logsPage.Controls.Add(new DiagnosticLogPage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(logsPage);
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -491,6 +513,7 @@ internal sealed class MainForm : Form
         workspace.Controls.Add(navigation, 0, 0);
         workspace.Controls.Add(tabs, 1, 0);
         BuildNavigation();
+        tabs.SelectedIndex = 11;
         Controls.Add(workspace);
         Controls.Add(status);
         Controls.Add(toolbar);
@@ -508,13 +531,14 @@ internal sealed class MainForm : Form
         string[] labels = [
             "ダッシュボード", "Windows自由設定", "プリセット", "ゲーム・モニター",
             "ゲーム設定のヒント", "NVIDIAガイド", "NVIDIAグローバル",
-            "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較"
+            "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較",
+            "かんたん設定・移植", "復元センター", "操作・エラーログ"
         ];
         string? lastGroup = null;
         for (int i = 0; i < tabs.TabPages.Count; i++)
         {
             string group = i switch {
-                0 => "ホーム", 1 or 2 => "Windows設定",
+                0 or 11 => "ホーム", 1 or 2 => "Windows設定",
                 3 or 4 => "ゲーム環境", 5 or 6 => "NVIDIA",
                 _ => "ツール・管理"
             };
@@ -962,6 +986,7 @@ internal sealed class MainForm : Form
             try
             {
                 string result = BatchSettingsApplier.Apply(plan);
+                DiagnosticLog.Record("WindowsBatchApply", "Success");
                 Scan();
                 MessageBox.Show(this, result, "一括適用", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -969,6 +994,7 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            DiagnosticLog.Record("WindowsBatchApply", "Failed", ex);
             Scan();
             MessageBox.Show(this, ex.Message, "一括適用失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1105,7 +1131,45 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void StageBuiltInProfile(BuiltInGamingProfiles.Profile preset)
+    private void StageSetupProfile(string id)
+    {
+        var chosen = BuiltInGamingProfiles.All.FirstOrDefault(x => x.Id == id)
+            ?? throw new ArgumentException("不明なプリセットです。");
+        StageBuiltInProfile(chosen, announce: false);
+        // The driver may not be present on non-gaming PCs; the NVIDIA page stays read-only.
+        nvidiaEditor.StageSetupProfile(id);
+    }
+
+    private void StageImportedWindows(GamingTransferBundle.WindowsPreferences pref)
+    {
+        void Stage(SettingCard card, ComboBox desired, bool? value)
+        {
+            card.ApplySwitch.IsOn = false;
+            if (!card.ApplySwitch.Enabled || !value.HasValue) return;
+            desired.SelectedIndex = value.Value ? 1 : 0;
+            card.ApplySwitch.IsOn = true;
+        }
+
+        // If a user imports a file on a different PC, never assume its power plan exists.
+        Stage(mouseCard, mouseDesired, pref.MouseAcceleration);
+        Stage(gameModeCard, gameModeDesired, pref.GameMode);
+        Stage(captureCard, captureDesired, pref.BackgroundCapture);
+        Stage(gameBarCaptureCard, gameBarCaptureDesired, pref.GameBarCapture);
+        powerCard.ApplySwitch.IsOn = false;
+        if (pref.PowerScheme.HasValue && powerCard.ApplySwitch.Enabled)
+        {
+            foreach (PowerPlanManager.Plan plan in powerChoices.Items)
+            {
+                if (plan.Id != pref.PowerScheme.Value) continue;
+                powerChoices.SelectedItem = plan;
+                powerCard.ApplySwitch.IsOn = true;
+                break;
+            }
+        }
+        UpdateBatchSummary();
+    }
+
+    private void StageBuiltInProfile(BuiltInGamingProfiles.Profile preset, bool announce = true)
     {
         // Stage UI values only; no calls to Apply, Windows registry, or powercfg.
         var notes = new List<string>();
@@ -1157,6 +1221,7 @@ internal sealed class MainForm : Form
             }
 
             UpdateBatchSummary();
+            if (!announce) return;
             tabs.SelectedIndex = 1;
             MessageBox.Show(this,
                 "「" + preset.Title + "」の変更候補を自由設定に読み込みました。\n" +
