@@ -100,23 +100,33 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M8.1 (安全性・互換性・操作性強化)";
-        Size = new Size(1180, 760);
+        Text = "PC Setup Copier — M8.2 (UIリデザイン)";
+        Size = new Size(1260, 800);
         MinimumSize = new Size(980, 660);
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterScreen;
         FormClosing += (_, _) => updateCancellation.Cancel();
         FormClosed += (_, _) => updateCancellation.Dispose();
         Font = new Font("Yu Gothic UI", 10f);
-        BackColor = Color.FromArgb(248, 250, 253);
-        var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 48,
-            Font = new Font("Yu Gothic UI", 18f, FontStyle.Bold), Padding = new Padding(24, 12, 0, 0), ForeColor = Color.FromArgb(28, 43, 65) };
-        var notice = new Label { Text = "ゲーム関連11項目を診断。対応する設定は適用対象トグルで選び、確認後にまとめて適用できます。",
-            Dock = DockStyle.Top, Height = 26, ForeColor = Color.FromArgb(78, 101, 130), Padding = new Padding(24, 3, 0, 0) };
+        BackColor = Color.FromArgb(245, 247, 251);
+        var title = new Label {
+            Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 41,
+            Font = new Font("Yu Gothic UI", 18f, FontStyle.Bold),
+            Padding = new Padding(21, 8, 0, 0),
+            ForeColor = Color.FromArgb(28, 43, 65)
+        };
+        var notice = new Label {
+            Text = "GAME SETUP  /  Windows + NVIDIA",
+            Dock = DockStyle.Top, Height = 23,
+            ForeColor = Color.FromArgb(100, 117, 148),
+            Font = new Font("Yu Gothic UI", 9f, FontStyle.Bold),
+            Padding = new Padding(23, 1, 0, 0)
+        };
         device.Dock = DockStyle.Top;
-        device.Height = 57;
-        device.Padding = new Padding(24, 4, 0, 0);
-        device.ForeColor = Color.FromArgb(70, 82, 104);
+        device.Height = 46;
+        device.Padding = new Padding(22, 2, 0, 0);
+        device.Font = new Font("Yu Gothic UI", 9.1f);
+        device.ForeColor = Color.FromArgb(95, 110, 130);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 55, Padding = new Padding(15, 3, 0, 0) };
         AddAction(actions, "JSONを書き出し", Export);
         AddAction(actions, "コピー元JSONを選ぶ", Import);
@@ -130,11 +140,14 @@ internal sealed class MainForm : Form
         actions.WrapContents = true;
         actions.Height = 58;
 
-        updateButton.Text = "更新を確認";
+        updateButton.Text = "アップデート";
         updateButton.AutoSize = true;
         updateButton.MinimumSize = new Size(130, 36);
         updateButton.Click += async (_, _) => await UpdateAsync();
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(20, 5, 0, 0), BackColor = BackColor };
+        var toolbar = new FlowLayoutPanel {
+            Dock = DockStyle.Top, Height = 43,
+            Padding = new Padding(20, 1, 0, 0), BackColor = BackColor
+        };
         AddAction(toolbar, "PCを診断", Scan);
         toolbar.Controls.Add(updateButton);
 
@@ -512,13 +525,13 @@ internal sealed class MainForm : Form
             UpdateStatus();
         };
         status.Dock = DockStyle.Bottom;
-        status.Height = 32;
+        status.Height = 27;
         status.ForeColor = Color.FromArgb(79, 94, 115);
         status.BackColor = Color.FromArgb(240, 244, 249);
         status.Padding = new Padding(20, 5, 0, 0);
         status.AutoEllipsis = true;
         var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 218));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 206));
         workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         workspace.Controls.Add(navigation, 0, 0);
         workspace.Controls.Add(tabs, 1, 0);
@@ -559,20 +572,23 @@ internal sealed class MainForm : Form
             if (lastGroup != group)
             {
                 navigationStack.Controls.Add(new Label {
-                    Text = group, Width = 174, Height = 30, ForeColor = Color.FromArgb(151, 172, 201),
-                    Font = new Font("Yu Gothic UI", 9f, FontStyle.Bold),
-                    Margin = new Padding(8, 12, 0, 0)
+                    Text = group.ToUpperInvariant(), Width = 174, Height = 28,
+                    ForeColor = Color.FromArgb(132, 156, 193),
+                    Font = new Font("Yu Gothic UI", 8.4f, FontStyle.Bold),
+                    Margin = new Padding(10, 12, 0, 0)
                 });
                 lastGroup = group;
             }
             int target = i;
             var button = new Button {
-                Text = labels[i], Width = 180, Height = 42,
+                Text = labels[i], Width = 180, Height = 38,
                 TextAlign = ContentAlignment.MiddleLeft,
-                FlatStyle = FlatStyle.Flat, ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.FromArgb(211, 224, 240),
                 BackColor = Color.FromArgb(31, 44, 67),
-                Padding = new Padding(9, 0, 0, 0),
-                Margin = new Padding(0, 1, 0, 1)
+                Font = new Font("Yu Gothic UI", 9.4f),
+                Padding = new Padding(10, 0, 0, 0),
+                Margin = new Padding(0, 2, 0, 2),
+                Cursor = Cursors.Hand
             };
             button.FlatAppearance.BorderSize = 0;
             button.Click += (_, _) => tabs.SelectedIndex = target;
@@ -603,7 +619,9 @@ internal sealed class MainForm : Form
             bool active = tabs.SelectedIndex == navigationTargets[i];
             navigationButtons[i].BackColor = active
                 ? Color.FromArgb(44, 100, 177) : Color.FromArgb(31, 44, 67);
-            navigationButtons[i].Font = new Font("Yu Gothic UI", 10f,
+            navigationButtons[i].ForeColor = active ? Color.White :
+                Color.FromArgb(211, 224, 240);
+            navigationButtons[i].Font = new Font("Yu Gothic UI", 9.4f,
                 active ? FontStyle.Bold : FontStyle.Regular);
         }
     }
