@@ -68,11 +68,3 @@ jobs:
           Compress-Archive -Path "publish/*" -DestinationPath $archive -CompressionLevel Optimal
           gh release create "build-${{ github.sha }}" "$archive" --repo "$env:GITHUB_REPOSITORY" --target "${{ github.sha }}" --title "PC Setup Copier M8.1" --notes "Verified Windows x64 package (M8.1). Includes executable, build-info.json, SHA-256 checksum and package preflight." --latest
           if ($LASTEXITCODE -ne 0) { throw "Cannot publish a verified update release" }
-      - name: Upload build artifact
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: PCSetupCopier-win-x64
-          path: publish/
-          retention-days: 1
-          if-no-files-found: error
