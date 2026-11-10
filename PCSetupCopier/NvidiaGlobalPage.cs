@@ -21,6 +21,9 @@ internal sealed class NvidiaGlobalPage : UserControl
     };
     private readonly Button restore = new() { Text = "前回の設定を復元", AutoSize = true, Height = 38 };
     private bool loaded;
+    private readonly TextBox search = new() {
+        Width = 220, PlaceholderText = "項目を検索（例：アンチエイリアス）"
+    };
 
     internal NvidiaGlobalPage()
     {
@@ -28,7 +31,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
             RowCount = 5, Padding = new Padding(14) };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 119));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 95));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
@@ -38,12 +41,19 @@ internal sealed class NvidiaGlobalPage : UserControl
             Font = new Font("Yu Gothic UI", 15, FontStyle.Bold)
         }, 0, 0);
 
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true };
         AddButton(actions, "現在のNVIDIA設定を取得", RefreshDriver);
         AddButton(actions, "FPS重視", () => StageProfile("fps"));
         AddButton(actions, "バランス重視", () => StageProfile("balanced"));
         AddButton(actions, "画質重視", () => StageProfile("visual"));
         AddButton(actions, "現在値を希望値に取り込む", CaptureCurrent);
+        AddButton(actions, "適用チェックを全解除", () => {
+            foreach (DataGridViewRow row in grid.Rows)
+                row.Cells["Apply"].Value = false;
+            status.Text = "適用対象を解除しました。ドライバーは変更していません。";
+        });
+        search.TextChanged += (_, _) => FilterRows();
+        actions.Controls.Add(search);
         AddButton(actions, "変更前後をプレビュー", PreviewDriver);
         layout.Controls.Add(actions, 0, 1);
 
@@ -127,6 +137,24 @@ internal sealed class NvidiaGlobalPage : UserControl
         panel.Controls.Add(button);
     }
 
+    private void FilterRows()
+    {
+        try
+        {
+            grid.EndEdit();
+            grid.CurrentCell = null;
+            string term = search.Text.Trim();
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                var setting = (NvidiaGlobalDrs.Setting)row.Tag!;
+                row.Visible = term.Length == 0 ||
+                    setting.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    setting.Key.Contains(term, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch { /* Editing can be in progress; a later text change will retry. */ }
+    }
+
     private void RefreshTemplates()
     {
         templates.Items.Clear();
@@ -144,7 +172,13 @@ internal sealed class NvidiaGlobalPage : UserControl
             {
                 var item = (NvidiaGlobalDrs.Setting)row.Tag!;
                 var state = states[item.Key];
-                string current = NvidiaGlobalDrs.Label(item, state.Value);
+                string current = state.Available
+                    ? NvidiaGlobalDrs.Label(item, state.Value)
+                    : "このドライバーでは未対応／取得不可";
+                row.ReadOnly = !state.Available;
+                if (!state.Available) row.Cells["Apply"].Value = false;
+                row.DefaultCellStyle.ForeColor = state.Available
+                    ? Color.FromArgb(35, 48, 67) : Color.Gray;
                 row.Cells["Current"].Value = current;
                 row.Cells["Current"].ToolTipText = state.IsExplicit
                     ? "グローバル設定に明示指定あり" : "プリセット／既定値";
@@ -155,8 +189,10 @@ internal sealed class NvidiaGlobalPage : UserControl
                 }
             }
             loaded = true;
-            apply.Enabled = true;
-            status.Text = "NVAPIからグローバル設定を取得しました。適用対象だけ変更します。";
+            int available = states.Values.Count(x => x.Available);
+            apply.Enabled = available > 0;
+            status.Text = available + " / " + NvidiaGlobalDrs.Settings.Count +
+                "件のNVIDIA設定を取得。未対応項目は編集不可です。";
         }
         catch (Exception ex)
         {
@@ -220,7 +256,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         {
             var item = (NvidiaGlobalDrs.Setting)row.Tag!;
             row.Cells["Apply"].Value = false;
-            if (!values.TryGetValue(item.Key, out uint value)) continue;
+            if (row.ReadOnly || !values.TryGetValue(item.Key, out uint value)) continue;
             var option = item.Options.FirstOrDefault(x => x.Value == value);
             if (option == null) continue;
             row.Cells["Desired"].Value = option.Label;
@@ -236,6 +272,8 @@ internal sealed class NvidiaGlobalPage : UserControl
         foreach (DataGridViewRow row in grid.Rows)
         {
             if (row.Cells["Apply"].Value is not true) continue;
+            if (row.ReadOnly)
+                throw new InvalidOperationException("未対応のNVIDIA設定は変更できません。");
             var item = (NvidiaGlobalDrs.Setting)row.Tag!;
             string? text = row.Cells["Desired"].Value as string;
             var option = item.Options.FirstOrDefault(x => x.Label == text)
