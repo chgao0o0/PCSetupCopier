@@ -1,3 +1,12 @@
+## M8.1 — Compatibility and reliability hardening
+
+- **NVIDIA import compatibility:** On every import, refresh the destination driver's current settings and stage only known, supported values that differ from the destination and can be backed out safely. Unsupported entries, unchanged values and unfamiliar explicit overrides are excluded; never bypass the final preview and confirmation. This is a driver-readability check, **not** confirmation that applying a value is supported by a particular GPU.
+- **Safer NVIDIA restore:** Validate all backup entries and current driver values before any write; require the post-apply explicit value to remain unchanged; confirm that restored explicit settings match and inherited settings no longer have overrides. If a driver Save/verification fails, attempt to restore all affected settings to their pre-restore state and report an error when this cannot be verified. Multi-PC and real-driver tests remain outstanding.
+- **No lingering update download on close:** Cancels an in-flight GitHub CLI updater when the main window closes, avoiding background processes that unnecessarily survive app shutdown. The intentionally spawned, one-shot staged-update helper is still allowed to finish an approved executable replacement after the UI exits.
+- **High-DPI layout:** Enable DPI-aware form auto-scaling and a larger minimum form size to reduce clipping for game-setup and NVIDIA controls.
+- **Pure automated guards:** CI package preflight now checks incompatible NVIDIA profiles, unknown overrides, wrong transfer-file formats/revisions, invalid power-scheme GUIDs, unsupported values and FPS math without needing a GPU or modifying host Windows settings.
+- This is a development/test build until actual NVIDIA NVAPI write/read/restore and screen DPI usability are tested on a target gaming PC. No protection/security/OS update settings are changed.
+
 ## M8.0 — Guided setup, combined transfer, recovery, diagnostics and FPS comparison
 
 - **かんたん設定・丸ごと移植** is the default start screen. Pick FPS-focused/balanced/visual presets to stage Windows and NVIDIA choices, or export the current supported Windows+NVIDIA settings into one portable JSON file and import on another PC. Loading a file never changes the PC; the Windows and NVIDIA sections each retain an independent final confirmation / Apply step, because they are different transactions.
