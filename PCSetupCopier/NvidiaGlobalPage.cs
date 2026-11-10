@@ -21,6 +21,8 @@ internal sealed class NvidiaGlobalPage : UserControl
     };
     private readonly Button restore = new() { Text = "前回の設定を復元", AutoSize = true, Height = 38 };
     private bool loaded;
+    private IReadOnlyDictionary<string, NvidiaGlobalDrs.State> driverStates =
+        new Dictionary<string, NvidiaGlobalDrs.State>();
     private readonly TabControl sections = new() { Dock = DockStyle.Fill };
     private readonly TextBox search = new() {
         Width = 220, PlaceholderText = "項目を検索（例：アンチエイリアス）"
@@ -236,35 +238,13 @@ internal sealed class NvidiaGlobalPage : UserControl
             if (!loaded)
                 throw new NotSupportedException(
                     "NVIDIAドライバーから現在値を取得できません。対応したゲーミングPCで試してください。");
-            int matched = 0;
-            int unavailable = transfer.Unrecognized;
-            grid.EndEdit();
-            foreach (DataGridViewRow row in grid.Rows)
-            {
-                var item = (NvidiaGlobalDrs.Setting)row.Tag!;
-                row.Cells["Apply"].Value = false;
-                if (!transfer.Values.TryGetValue(item.Key, out uint value)) continue;
-                var option = item.Options.FirstOrDefault(x => x.Value == value);
-                if (row.ReadOnly || option == null)
-                {
-                    unavailable++;
-                    continue;
-                }
-                row.Cells["Desired"].Value = option.Label;
-                row.Cells["Apply"].Value = true;
-                matched++;
-            }
-            if (matched == 0)
-                throw new NotSupportedException("移植先で設定できる項目がありません。");
-            sections.SelectedIndex = 0;
-            apply.Enabled = true;
-            status.Text = "移植候補 " + matched + "項目を準備済み。内容確認後に一括適用してください。";
+            string summary = StageExternal(transfer.Values);
             MessageBox.Show(this,
-                "友達の設定から " + matched + "項目を適用候補にセットしました。\n" +
-                (unavailable == 0 ? "" : unavailable + "項目は未対応・未知のため除外しました。\n") +
-                "\nNVIDIAの設定はまだ変更していません。\n" +
-                "一覧で希望値を確認して、よければ画面下の「一括適用」を押してください。",
-                "NVIDIA設定の取り込み完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                summary + (transfer.Unrecognized == 0 ? "" :
+                "\n未登録の項目 " + transfer.Unrecognized + "件は除外しました。") +
+                "\n\nドライバー設定はまだ変更していません。\n一覧を確認して必要なら一括適用してください。",
+                "NVIDIA設定の互換性チェック", MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -286,6 +266,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         try
         {
             var states = NvidiaGlobalDrs.ReadAll().ToDictionary(x => x.Key);
+            driverStates = states;
             foreach (DataGridViewRow row in grid.Rows)
             {
                 var item = (NvidiaGlobalDrs.Setting)row.Tag!;
@@ -315,6 +296,12 @@ internal sealed class NvidiaGlobalPage : UserControl
         catch (Exception ex)
         {
             loaded = false;
+            driverStates = new Dictionary<string, NvidiaGlobalDrs.State>();
+            foreach (DataGridViewRow row in grid.Rows) {
+                row.ReadOnly = true;
+                row.Cells["Apply"].Value = false;
+                row.Cells["Current"].Value = "NVIDIAドライバー取得失敗";
+            }
             apply.Enabled = false;
             status.Text = "NVIDIA設定を取得できません: " + ex.Message;
         }
@@ -326,14 +313,23 @@ internal sealed class NvidiaGlobalPage : UserControl
     internal string StageExternal(IReadOnlyDictionary<string, uint> values)
     {
         if (values.Count == 0) return "移植対象なし";
-        if (!loaded) RefreshDriver();
+        // Always re-read at import time, not a stale previously loaded driver snapshot.
+        RefreshDriver();
         if (!loaded) return "NVIDIAドライバーを取得できず、適用候補はセットしていません。";
-        Stage(values);
+        var compatibility = NvidiaGlobalDrs.AssessCompatibility(values, driverStates.Values);
+        var allowed = compatibility.Where(x => x.CanStage)
+            .ToDictionary(x => x.Key, x => values[x.Key]);
+        Stage(allowed);
         sections.SelectedIndex = 0;
-        int staged = grid.Rows.Cast<DataGridViewRow>()
-            .Count(x => x.Cells["Apply"].Value is true);
-        DiagnosticLog.Record("NVIDIAImport", "Staged " + staged + " items");
-        return staged + "項目を適用候補にしました。未対応設定は除外しました。";
+        int excluded = compatibility.Count(x => !x.CanStage && x.Reason != "現在の設定と同じ");
+        int unchanged = compatibility.Count(x => x.Reason == "現在の設定と同じ");
+        DiagnosticLog.Record("NVIDIAImport",
+            "Staged " + allowed.Count + ", excluded " + excluded + ", unchanged " + unchanged);
+        status.Text = "NVIDIA移植候補 " + allowed.Count +
+            "項目 / 非対応・安全上の除外 " + excluded + "項目 / 同じ " + unchanged + "項目";
+        return allowed.Count + "項目を適用候補に設定、" +
+            excluded + "項目は互換性・安全性チェックで除外、" +
+            unchanged + "項目は変更不要です。";
     }
 
     private void StageProfile(string type)
