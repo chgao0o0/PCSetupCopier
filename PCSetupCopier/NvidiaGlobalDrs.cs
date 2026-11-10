@@ -27,7 +27,9 @@ internal static class NvidiaGlobalDrs
             new("パフォーマンス", 10), new("ハイパフォーマンス", 20)]),
         new("fps", "最大フレームレート", 0x10835002, [
             new("制限なし", 0), new("60 FPS", 60), new("120 FPS", 120),
-            new("144 FPS", 144), new("165 FPS", 165), new("180 FPS", 180),
+            new("141 FPS", 141), new("143 FPS", 143), new("144 FPS", 144),
+            new("160 FPS", 160), new("162 FPS", 162),
+            new("164 FPS", 164), new("165 FPS", 165), new("180 FPS", 180),
             new("240 FPS", 240), new("300 FPS", 300), new("360 FPS", 360),
             new("500 FPS", 500)]),
         new("anisotropic_mode", "異方性フィルタリング：制御方法", 0x10D2BB16, [
@@ -75,7 +77,18 @@ internal static class NvidiaGlobalDrs
             new("無効を優先", 0), new("有効を優先", 1), new("自動", 2)]),
         new("ogl_quality", "OpenGL：レンダリング品質", 0x20797D6C, [
             new("高画質", 0xfffffff6), new("画質", 0),
-            new("パフォーマンス", 10), new("ハイパフォーマンス", 20)])
+            new("パフォーマンス", 10), new("ハイパフォーマンス", 20)]),
+        new("aa_samples", "アンチエイリアシング：サンプル数", 0x10D773D2, [
+            new("なし", 0), new("2x MSAA", 0xE), new("4x MSAA", 0x10),
+            new("8x MSAA", 0x25), new("16x MSAA", 0x1C)]),
+        new("ogl_line_gamma", "OpenGL：ラインのガンマ補正", 0x2089BF6C, [
+            new("無効", 0x10), new("有効", 0x23)]),
+        new("ogl_gdi", "OpenGL：GDI互換性", 0x2072C5A3, [
+            new("無効を優先", 0), new("有効を優先", 1), new("自動", 2)]),
+        new("ogl_deep_color", "OpenGL：3Dアプリのディープカラー", 0x2097C2F6, [
+            new("無効", 0), new("有効", 1)]),
+        new("ogl_buffer_flip", "OpenGL：バッファフリッピング", 0x201F619F, [
+            new("無効", 0), new("有効", 1)])
     ];
 
     internal static string BackupFolder => Path.Combine(
@@ -399,7 +412,7 @@ internal static class NvidiaGlobalDrs
 
     internal static bool VerifyContract() =>
         StructSize == 12320 && CurrentValueOffset == 8220 &&
-        Settings.Count >= 24 &&
+        Settings.Count >= 30 &&
         Settings.Select(x => x.Id).Distinct().Count() == Settings.Count &&
         Settings.Select(x => x.Key).Distinct().Count() == Settings.Count &&
         Settings.All(x => x.Options.Select(y => y.Value).Distinct().Count() == x.Options.Count);
