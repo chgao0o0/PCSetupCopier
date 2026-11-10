@@ -16,7 +16,15 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        Application.ThreadException += (_, e) =>
+            DiagnosticLog.Record("UIUnhandledException", "Error", e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            DiagnosticLog.Record("UnhandledException", "Fatal", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+            DiagnosticLog.Record("UnobservedTaskException", "Error", e.Exception);
+        DiagnosticLog.Record("Application", "Started");
+        try { Application.Run(new MainForm()); }
+        finally { DiagnosticLog.Record("Application", "Closed"); }
         return 0;
     }
 }
