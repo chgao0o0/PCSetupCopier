@@ -52,7 +52,7 @@ internal sealed class RecoveryCenterPage : UserControl
         layout.Controls.Add(selector, 0, 2);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         var refresh = new Button { Text = "バックアップ状況を更新", AutoSize = true, Height = 37 };
-        refresh.Click += (_, _) => Refresh();
+        refresh.Click += (_, _) => RefreshInventory();
         actions.Controls.Add(refresh);
         var restore = new Button {
             Text = "チェックした設定だけ復元", AutoSize = true, Height = 37,
@@ -63,10 +63,10 @@ internal sealed class RecoveryCenterPage : UserControl
         layout.Controls.Add(actions, 0, 3);
         layout.Controls.Add(output, 0, 4);
         Controls.Add(layout);
-        Refresh();
+        RefreshInventory();
     }
 
-    private void Refresh()
+    private void RefreshInventory()
     {
         int total = 0;
         foreach (var (box, item) in entries)
