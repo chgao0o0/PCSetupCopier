@@ -28,7 +28,7 @@ internal static class NvidiaProfileStore
     {
         if (string.IsNullOrWhiteSpace(item.Name) || item.Name.Length > 40 ||
             item.Name.Any(x => char.IsControl(x) || x is '/' or '\\') ||
-            item.Values.Count is < 1 or > 4)
+            item.Values.Count < 1 || item.Values.Count > NvidiaGlobalDrs.Settings.Count)
             throw new InvalidDataException("NVIDIAプリセットの内容が不正です。");
         foreach (var (key, value) in item.Values)
         {
