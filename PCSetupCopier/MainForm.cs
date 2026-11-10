@@ -73,6 +73,7 @@ internal sealed class MainForm : Form
         BackColor = Color.FromArgb(31, 44, 67)
     };
     private readonly List<Button> navigationButtons = [];
+    private readonly List<int> navigationTargets = [];
     private readonly Label diagnosticOverview = new() {
         Dock = DockStyle.Fill, Font = new Font("Yu Gothic UI", 11f, FontStyle.Bold),
         ForeColor = Color.FromArgb(34, 55, 86), Padding = new Padding(12)
@@ -534,12 +535,16 @@ internal sealed class MainForm : Form
             "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較",
             "かんたん設定・移植", "復元センター", "操作・エラーログ"
         ];
+        // Prominently show the single guided starting point, without renumbering tabs.
+        int[] order = [11, 0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 12, 13, 10];
         string? lastGroup = null;
-        for (int i = 0; i < tabs.TabPages.Count; i++)
+        foreach (int i in order)
         {
             string group = i switch {
-                0 or 11 => "ホーム", 1 or 2 => "Windows設定",
-                3 or 4 => "ゲーム環境", 5 or 6 => "NVIDIA",
+                11 => "はじめる", 0 => "ホーム",
+                1 or 2 => "Windows設定",
+                3 or 4 => "ゲーム環境",
+                5 or 6 => "NVIDIA",
                 _ => "ツール・管理"
             };
             if (lastGroup != group)
@@ -563,6 +568,7 @@ internal sealed class MainForm : Form
             button.FlatAppearance.BorderSize = 0;
             button.Click += (_, _) => tabs.SelectedIndex = target;
             navigationButtons.Add(button);
+            navigationTargets.Add(i);
             navigationStack.Controls.Add(button);
         }
         navigation.Controls.Add(navigationStack);
@@ -585,7 +591,7 @@ internal sealed class MainForm : Form
     {
         for (int i = 0; i < navigationButtons.Count; i++)
         {
-            bool active = tabs.SelectedIndex == i;
+            bool active = tabs.SelectedIndex == navigationTargets[i];
             navigationButtons[i].BackColor = active
                 ? Color.FromArgb(44, 100, 177) : Color.FromArgb(31, 44, 67);
             navigationButtons[i].Font = new Font("Yu Gothic UI", 10f,
