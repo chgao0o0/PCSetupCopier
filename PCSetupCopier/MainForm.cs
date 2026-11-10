@@ -97,7 +97,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M7.1 (表示・操作レイアウト改善)";
+        Text = "PC Setup Copier — M7.2 (ゲーム設定比較・バックアップ履歴)";
         Size = new Size(1180, 760);
         MinimumSize = new Size(860, 560);
         StartPosition = FormStartPosition.CenterScreen;
@@ -373,6 +373,11 @@ internal sealed class MainForm : Form
         var backupPage = new TabPage("バックアップ・復元") { BackColor = Color.FromArgb(248, 250, 253) };
         var backupLayout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
             WrapContents = false, AutoScroll = true, Padding = new Padding(22, 22, 10, 10) };
+        backupLayout.Controls.Add(new Label { Text = "バックアップ履歴",
+            AutoSize = true, Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
+        backupLayout.Controls.Add(new BackupInventoryPanel {
+            Width = 745, Height = 236, Margin = new Padding(0, 10, 0, 20)
+        });
         backupLayout.Controls.Add(new Label { Text = "マウス設定の復元", AutoSize = true,
             Font = new Font("Yu Gothic UI", 16f, FontStyle.Bold) });
         backupLayout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(780, 0),
@@ -436,6 +441,11 @@ internal sealed class MainForm : Form
         tabs.TabPages.Add(reportPage);
         tabs.TabPages.Add(copyPage);
         tabs.TabPages.Add(backupPage);
+        var comparePage = new TabPage("変更前後の比較") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        comparePage.Controls.Add(new GamingBaselinePage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(comparePage);
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -498,7 +508,7 @@ internal sealed class MainForm : Form
         string[] labels = [
             "ダッシュボード", "Windows自由設定", "プリセット", "ゲーム・モニター",
             "ゲーム設定のヒント", "NVIDIAガイド", "NVIDIAグローバル",
-            "診断レポート", "PCからコピー", "バックアップ・復元"
+            "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較"
         ];
         string? lastGroup = null;
         for (int i = 0; i < tabs.TabPages.Count; i++)
