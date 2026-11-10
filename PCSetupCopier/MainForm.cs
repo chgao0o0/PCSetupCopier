@@ -555,7 +555,7 @@ internal sealed class MainForm : Form
             "ダッシュボード", "Windows自由設定", "プリセット", "ゲーム・モニター",
             "ゲーム設定のヒント", "NVIDIAガイド", "NVIDIAグローバル",
             "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較",
-            "かんたん設定・移植", "復元センター", "操作・エラーログ", "FPS比較"
+            "かんたん設定", "復元センター", "操作・エラーログ", "FPS比較"
         ];
         // Prominently show the single guided starting point, without renumbering tabs.
         int[] order = [11, 0, 1, 2, 3, 4, 6, 5, 14, 7, 8, 9, 12, 13, 10];
