@@ -1,3 +1,13 @@
+## M8.0 — Guided setup, combined transfer, recovery, diagnostics and FPS comparison
+
+- **かんたん設定・丸ごと移植** is the default start screen. Pick FPS-focused/balanced/visual presets to stage Windows and NVIDIA choices, or export the current supported Windows+NVIDIA settings into one portable JSON file and import on another PC. Loading a file never changes the PC; the Windows and NVIDIA sections each retain an independent final confirmation / Apply step, because they are different transactions.
+- The combined transfer file contains allowlisted preference values and NVIDIA DRS option values only; no game executable paths, user identifiers, security toggles, network settings or unrecognized raw registry data. Missing NVIDIA drivers or per-device settings result in warnings or an exclusion, not speculative writes. Unknown entries are not applied.
+- **復元センター** provides an opt-in checkbox for each component with an available last backup. Selected restores are attempted independently and reported separately; this is best-effort, *not* an atomic Windows+NVIDIA restore. Important hardware-specific restorations still require real-PC tests.
+- **操作・エラーログ** retains bounded local operations/errors and can be exported for troubleshooting. Logs may contain local error paths; inspect before sharing. No automatic upload or background process is created.
+- **FPS比較** supports previously captured PresentMon-style frametime CSVs. It calculates mean FPS and approximate 1% / 0.1% low from observed frame times, comparing before/after files; it is not an in-app frame capture or instrumented benchmark. Compare matching scenes/resolutions/game versions.
+- The sidebar puts guided setup first while retaining existing feature tabs. Recommending a preset, loading a transfer file, comparing FPS and reading a diagnostic report are non-mutating operations; actual setting changes always require explicit user confirmation.
+- CI checks compilation/package and the pure JSON-format/FPS math contracts. NVIDIA DRS I/O, multi-GPU and multi-monitor operations remain unverified on the target gaming hardware.
+
 ## M7.3 — Expanded NVIDIA global 3D controls
 
 - Extended the verified, user-facing NVIDIA NVAPI DRS global-setting catalog from **4 to 30 options**: power, V-Sync, texture quality, per-driver frame cap, anisotropic filtering mode/level, anti-aliasing mode/quality, FXAA, MFAA, OpenGL optimizations and output settings, shader cache, anisotropic/trilinear optimizations, negative LOD bias, pre-rendered frames, preferred refresh rate, ambient occlusion and more.
