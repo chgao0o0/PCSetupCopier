@@ -1,3 +1,12 @@
+## M7.2 — Staged game GPU batch actions, backups and before/after comparison
+
+- **ゲーム・モニター** adds read-only staged batch tools: select up to 40 registered games for high-performance GPU preference, set only selected rows to high performance or Windows default, or clear all apply checkmarks. The controls only stage changes in the list; the existing explicit preview and Apply button still protects Windows changes.
+- **NVIDIAグローバル** adds an independent change preview based on NVAPI read-back. It shows current and pending settings without changing the driver. NVIDIA driver operations still require gaming-PC testing on supported hardware.
+- **バックアップ・復元** displays existing JSON backup files with timestamps and size, plus a button to open the backup folder. It does not restore or delete backup files automatically.
+- New **変更前後の比較** tab can save a local read-only settings baseline, import an older PC Setup Copier snapshot JSON, compare it with a fresh scan and export a text difference report. It highlights changes, distinguishes unavailable values and performs no writes to Windows/NVIDIA settings.
+- Existing security protections remain: no changes to Defender, Firewall, UAC, Windows Update, SmartScreen or encryption. Preset choice and diagnostic comparison remain staging or read-only until an explicit Apply action.
+- CI verifies compilation, Windows packaging and pure preflight only. Live gaming hardware, multi-monitor behavior and NVIDIA NVAPI driver application are not tested in CI.
+
 ## M7.0 — Simplified navigation and readable diagnostics
 
 - Replaced the crowded single-row tab navigation with a persistent **grouped left menu** (Home, Windows Settings, Game Environment, NVIDIA, Tools), so all destinations are visible and navigable without tiny overflow arrows.
