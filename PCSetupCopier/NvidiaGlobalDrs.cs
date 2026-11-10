@@ -439,6 +439,35 @@ internal static class NvidiaGlobalDrs
         }
     }
 
+    private static void UndoFailedRestore(IReadOnlyList<Change> changes)
+    {
+        using (var rollback = new Connection())
+        {
+            foreach (var change in changes)
+            {
+                var item = Settings.Single(x => x.Key == change.Key);
+                var state = rollback.Read(item);
+                bool expectedAfter = state.IsExplicit && state.Value == change.After;
+                bool expectedBefore = change.BeforeExplicit
+                    ? state.IsExplicit && state.Value == change.Before
+                    : !state.IsExplicit;
+                if (!expectedAfter && !expectedBefore)
+                    throw new InvalidOperationException(
+                        "復元中に別のNVIDIA変更を検出したため、上書きを中止しました: " + item.Title);
+                rollback.Set(item, change.After);
+            }
+            rollback.Save();
+        }
+        using var verify = new Connection();
+        foreach (var change in changes)
+        {
+            var state = verify.Read(Settings.Single(x => x.Key == change.Key));
+            if (state.Value != change.After || !state.IsExplicit)
+                throw new InvalidOperationException(
+                    "NVIDIA復元失敗後の再復旧を検証できません: " + change.Key);
+        }
+    }
+
     internal static string Restore()
     {
         if (!CanRestore) throw new FileNotFoundException("NVIDIAバックアップがありません。");
@@ -446,32 +475,71 @@ internal static class NvidiaGlobalDrs
             throw new InvalidDataException("NVIDIAバックアップのサイズが不正です。");
         var backup = JsonSerializer.Deserialize<Backup>(File.ReadAllText(LatestBackup))
             ?? throw new InvalidDataException("NVIDIAバックアップの形式が不正です。");
-        if (backup.Changes.Count < 1 || backup.Changes.Count > Settings.Count ||
+        if (backup.Changes == null || backup.Changes.Count < 1 ||
+            backup.Changes.Count > Settings.Count ||
             backup.Changes.Select(x => x.Key).Distinct().Count() != backup.Changes.Count)
             throw new InvalidDataException("復元データが不正です。");
-        using var con = new Connection();
-        foreach (var change in backup.Changes)
+
+        using (var con = new Connection())
         {
-            var item = Settings.SingleOrDefault(x => x.Key == change.Key)
-                ?? throw new InvalidDataException("未知のNVIDIA設定です。");
-            if (con.Read(item).Value != change.After)
-                throw new InvalidOperationException("バックアップ後に設定が変更されています: " + item.Title);
-            if (change.BeforeExplicit && change.Before.HasValue)
-                con.Set(item, change.Before.Value);
-            else
-                con.Delete(item);
-        }
-        con.Save();
-        using var verify = new Connection();
-        foreach (var change in backup.Changes)
-        {
-            var actual = verify.Read(Settings.Single(x => x.Key == change.Key));
-            if (change.BeforeExplicit &&
-                (actual.Value != change.Before || !actual.IsExplicit))
+            // Validate the entire batch before any writes, including driver availability
+            // and whether the current post-apply setting is still an explicit override.
+            foreach (var change in backup.Changes)
+            {
+                var item = Settings.SingleOrDefault(x => x.Key == change.Key)
+                    ?? throw new InvalidDataException("未知のNVIDIA設定です。");
+                if (!item.Options.Any(x => x.Value == change.After) ||
+                    (change.BeforeExplicit &&
+                        (!change.Before.HasValue ||
+                         !item.Options.Any(x => x.Value == change.Before.Value))))
+                    throw new InvalidDataException("バックアップ内の値が不正です: " + item.Title);
+                var current = con.Read(item);
+                if (!current.Available || !current.IsExplicit ||
+                    current.Value != change.After)
+                    throw new InvalidOperationException(
+                        "バックアップ後に設定が変わっています。復元しません: " + item.Title);
+            }
+            bool saveAttempted = false;
+            try
+            {
+                foreach (var change in backup.Changes)
+                {
+                    var item = Settings.Single(x => x.Key == change.Key);
+                    if (change.BeforeExplicit)
+                        con.Set(item, change.Before!.Value);
+                    else
+                        con.Delete(item);
+                }
+                saveAttempted = true;
+                con.Save();
+                using var verify = new Connection();
+                foreach (var change in backup.Changes)
+                {
+                    var state = verify.Read(Settings.Single(x => x.Key == change.Key));
+                    bool restored = change.BeforeExplicit
+                        ? state.Value == change.Before && state.IsExplicit
+                        : !state.IsExplicit;
+                    if (!restored)
+                        throw new InvalidOperationException(
+                            "復元後の読み取り検証に失敗しました: " + change.Key);
+                }
+            }
+            catch (Exception failure)
+            {
+                if (!saveAttempted) throw;
+                try { UndoFailedRestore(backup.Changes); }
+                catch (Exception rollbackError)
+                {
+                    throw new AggregateException(
+                        "NVIDIA復元と再復旧の両方に失敗しました。バックアップを確認してください。",
+                        failure, rollbackError);
+                }
                 throw new InvalidOperationException(
-                    "復元後の読み取り検証に失敗しました: " + change.Key);
+                    "NVIDIA復元に失敗したため、復元前の設定へ戻しました: " +
+                    failure.Message, failure);
+            }
         }
-        return backup.Changes.Count + "件のNVIDIAグローバル設定を元に戻しました。";
+        return backup.Changes.Count + "件のNVIDIAグローバル設定を元に戻し、確認しました。";
     }
 
     internal static bool VerifyContract() =>
