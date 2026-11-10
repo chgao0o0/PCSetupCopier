@@ -8,6 +8,26 @@ internal static class Program
         if (args.Length == 1 && args[0] == "--verify-package")
             return UpdateManager.VerifyPackage();
 
+        if (args.Length == 1 && args[0] == "--verify-ui")
+        {
+            try
+            {
+                ApplicationConfiguration.Initialize();
+                GamingSetupPage.VerifyVisualGeometry();
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.WriteAllText(Path.Combine(AppContext.BaseDirectory,
+                        "ui-layout-error.txt"), ex.ToString());
+                }
+                catch { }
+                return 4;
+            }
+        }
+
         if (args.Length == 3 && args[0] == "--apply-staged-update")
         {
             if (!int.TryParse(args[2], out int previousPid) || previousPid <= 0)
