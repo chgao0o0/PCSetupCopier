@@ -134,8 +134,25 @@ internal static class GamingTransferBundle
                 new() { ["power"] = 1, ["unknown"] = 800 });
             var restored = JsonSerializer.Deserialize<Bundle>(JsonSerializer.Serialize(sample))!;
             var validated = Validate(restored);
-            return validated.Data.Nvidia.Count == 1 &&
-                validated.Warnings.Length == 1 && validated.Data.Windows.MouseAcceleration == false;
+            if (validated.Data.Nvidia.Count != 1 ||
+                validated.Warnings.Length != 1 ||
+                validated.Data.Windows.MouseAcceleration != false) return false;
+
+            bool Rejected(Bundle invalid)
+            {
+                try { Validate(invalid); return false; }
+                catch (InvalidDataException) { return true; }
+            }
+            // Prevent malformed schema, revision or power-plan data from becoming apply candidates.
+            if (!Rejected(sample with { Format = "unknown" }) ||
+                !Rejected(sample with { Version = 999 }) ||
+                !Rejected(sample with { Windows = sample.Windows with { PowerScheme = Guid.Empty } }) ||
+                !Rejected(sample with { Nvidia = null! })) return false;
+            // Unknown/unsupported driver values are discarded, not written.
+            var unknownOnly = Validate(sample with {
+                Nvidia = new Dictionary<string, uint> { ["power"] = 0xffffffff }
+            });
+            return unknownOnly.Data.Nvidia.Count == 0 && unknownOnly.Warnings.Length == 1;
         }
         catch { return false; }
     }
