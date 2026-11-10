@@ -66,5 +66,5 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP "PCSetupCopier-win-x64.zip"
           Compress-Archive -Path "publish/*" -DestinationPath $archive -CompressionLevel Optimal
-          gh release create "build-${{ github.sha }}" "$archive" --repo "$env:GITHUB_REPOSITORY" --target "${{ github.sha }}" --title "PC Setup Copier M8.1" --notes "Verified Windows x64 package (M8.1). Includes executable, build-info.json, SHA-256 checksum and package preflight." --latest
+          gh release create "build-${{ github.sha }}" "$archive" --repo "$env:GITHUB_REPOSITORY" --target "${{ github.sha }}" --title "PC Setup Copier M8.2" --notes "Verified Windows x64 package (M8.1). Includes executable, build-info.json, SHA-256 checksum and package preflight." --latest
           if ($LASTEXITCODE -ne 0) { throw "Cannot publish a verified update release" }
