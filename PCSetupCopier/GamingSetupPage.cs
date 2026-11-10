@@ -25,9 +25,9 @@ internal sealed class GamingSetupPage : UserControl
         TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true,
         Font = new Font("Yu Gothic UI", 9.5f)
     };
-    private readonly Panel scroller = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Canvas };
+    private readonly Panel scroller = new() { Name = "SetupScrollArea", Dock = DockStyle.Fill, AutoScroll = true, BackColor = Canvas };
     private readonly TableLayoutPanel content = new() {
-        ColumnCount = 1, RowCount = 5, AutoSize = false,
+        Name = "SetupContent", ColumnCount = 1, RowCount = 5, AutoSize = false,
         Size = new Size(920, 655), BackColor = Canvas,
         Margin = Padding.Empty, Padding = new Padding(18, 14, 18, 16)
     };
@@ -76,7 +76,7 @@ internal sealed class GamingSetupPage : UserControl
 
         content.Controls.Add(SectionTitle("QUICK PRESETS", "おすすめの設定を選択"), 0, 1);
         var presetGrid = new TableLayoutPanel {
-            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Name = "SetupPresets", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
             Margin = Padding.Empty, Padding = Padding.Empty
         };
         for (int i = 0; i < 3; i++)
@@ -90,6 +90,7 @@ internal sealed class GamingSetupPage : UserControl
         content.Controls.Add(presetGrid, 0, 2);
 
         var transfer = Card();
+        transfer.Name = "SetupTransfer";
         transfer.Margin = new Padding(0, 12, 0, 0);
         var transferContent = new TableLayoutPanel {
             Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 2,
@@ -146,7 +147,7 @@ internal sealed class GamingSetupPage : UserControl
         shell.Controls.Add(scroller, 0, 0);
 
         var footer = new TableLayoutPanel {
-            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Name = "SetupFooter", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
             BackColor = Color.White, Padding = new Padding(16, 10, 16, 10)
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -181,6 +182,55 @@ internal sealed class GamingSetupPage : UserControl
         if (content.Height != 655) content.Height = 655;
     }
 
+    internal static string VerifyVisualGeometry()
+    {
+        // A real WinForms layout probe, not a compile-only test.
+        // Must run in an STA on Windows. No settings are changed.
+        foreach (var width in new[] { 980, 1260, 1600 })
+        {
+            using var form = new Form {
+                ClientSize = new Size(width, 720),
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-2000, -2000),
+                AutoScaleMode = AutoScaleMode.Dpi
+            };
+            using var page = new GamingSetupPage(_ => {}, _ => "",
+                _ => {}, () => {}, () => {}) { Dock = DockStyle.Fill };
+            form.Controls.Add(page);
+            form.Show();
+            Application.DoEvents();
+            page.PerformLayout();
+            page.scroller.PerformLayout();
+            page.content.PerformLayout();
+            Application.DoEvents();
+
+            int usable = page.scroller.ClientSize.Width;
+            if (usable < width - 30)
+                throw new InvalidOperationException("セットアップ画面のスクロール領域が狭すぎます: " + usable);
+            if (page.content.Width < usable - 35)
+                throw new InvalidOperationException("設定カードが横幅いっぱいに展開されていません: " +
+                    page.content.Width + " / " + usable);
+            var presets = page.content.Controls.Find("SetupPresets", true).Single();
+            var cards = presets.Controls.Cast<Control>().ToArray();
+            if (cards.Length != 3 || cards.Any(card => card.Width < 175 || card.Height < 100))
+                throw new InvalidOperationException("プリセットカードのサイズが不正です: " +
+                    string.Join(",", cards.Select(card => card.Width + "x" + card.Height)));
+            if (cards.Any(card => card.Controls.OfType<TableLayoutPanel>()
+                .SelectMany(layout => layout.Controls.OfType<Button>())
+                .Any(button => button.Width < 115 || button.Height < 28)))
+                throw new InvalidOperationException("プリセットの操作ボタンが切れています。");
+            var transfer = page.content.Controls.Find("SetupTransfer", true).Single();
+            if (transfer.Width < 500 || transfer.Height < 150)
+                throw new InvalidOperationException("移植カードが小さすぎます: " +
+                    transfer.Width + "x" + transfer.Height);
+            var footer = page.Controls.Find("SetupFooter", true).Single();
+            if (footer.Width < usable - 10 || footer.Height < 55)
+                throw new InvalidOperationException("画面下の操作エリアが表示されません。");
+            form.Close();
+        }
+        return "980 / 1260 / 1600 px: setup cards, buttons and footer passed";
+    }
+
     private static Label SectionTitle(string overline, string caption) => new() {
         Dock = DockStyle.Fill, Text = overline + "     " + caption,
         ForeColor = Muted, Font = new Font("Yu Gothic UI", 9.5f, FontStyle.Bold),
@@ -203,6 +253,7 @@ internal sealed class GamingSetupPage : UserControl
         string id, bool highlighted)
     {
         var card = Card();
+        card.Name = "SetupPreset_" + id;
         card.Margin = new Padding(0, 0, 11, 7);
         var body = new TableLayoutPanel { Dock = DockStyle.Fill,
             RowCount = 3, Padding = new Padding(13, 10, 13, 12) };
