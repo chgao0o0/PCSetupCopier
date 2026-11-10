@@ -29,7 +29,53 @@ internal static class NvidiaGlobalDrs
             new("制限なし", 0), new("60 FPS", 60), new("120 FPS", 120),
             new("144 FPS", 144), new("165 FPS", 165), new("180 FPS", 180),
             new("240 FPS", 240), new("300 FPS", 300), new("360 FPS", 360),
-            new("500 FPS", 500)])
+            new("500 FPS", 500)]),
+        new("anisotropic_mode", "異方性フィルタリング：制御方法", 0x10D2BB16, [
+            new("アプリケーションに任せる", 0), new("ドライバー側で指定", 1),
+            new("条件付き", 2)]),
+        new("anisotropic_level", "異方性フィルタリング：倍率", 0x101E61A9, [
+            new("1倍（標準）", 1), new("2倍", 2), new("4倍", 4),
+            new("8倍", 8), new("16倍", 16)]),
+        new("aa_mode", "アンチエイリアシング：モード", 0x107EFC5B, [
+            new("アプリに任せる", 0), new("ドライバーで上書き", 1),
+            new("ゲームの設定を強化", 2)]),
+        new("aa_gamma", "アンチエイリアシング：ガンマ補正", 0x107D639D, [
+            new("オフ", 0), new("対応時にオン", 1), new("常にオン", 2)]),
+        new("aa_transparency", "アンチエイリアシング：透過MSAA", 0x10FC2D9C, [
+            new("オフ", 0), new("オン", 4)]),
+        new("fxaa", "アンチエイリアシング：FXAA", 0x1074C972, [
+            new("オフ", 0), new("オン", 1)]),
+        new("mfaa", "アンチエイリアシング：MFAA", 0x0098C1AC, [
+            new("オフ", 0), new("オン", 1)]),
+        new("ogl_threads", "OpenGL：スレッド最適化", 0x20C1221E, [
+            new("自動", 0), new("オン", 1), new("オフ", 2)]),
+        new("ogl_triple", "OpenGL：トリプルバッファリング", 0x20FDD1F9, [
+            new("オフ", 0), new("オン", 1)]),
+        new("shader_cache", "シェーダーキャッシュ", 0x00198FFF, [
+            new("オフ", 0), new("オン", 1)]),
+        new("aniso_sample_opt", "テクスチャ：異方性サンプル最適化", 0x00E73211, [
+            new("オフ", 0), new("オン", 1)]),
+        new("aniso_filter_opt", "テクスチャ：異方性フィルター最適化", 0x0084CD70, [
+            new("オフ", 0), new("オン", 1)]),
+        new("trilinear_opt", "テクスチャ：トリリニア最適化", 0x002ECAF2, [
+            new("オフ", 0), new("オン", 1)]),
+        new("negative_lod", "テクスチャ：ネガティブLODバイアス制限", 0x0019BB68, [
+            new("許可（オフ）", 0), new("制限（オン）", 1)]),
+        new("prerender", "最大プリレンダーフレーム（旧方式）", 0x007BA09E, [
+            new("アプリに任せる", 0), new("1", 1), new("2", 2), new("3", 3), new("4", 4)]),
+        new("vr_prerender", "VR：プリレンダーフレーム", 0x10111133, [
+            new("アプリに任せる", 0), new("1", 1), new("2", 2), new("3", 3), new("4", 4)]),
+        new("preferred_refresh", "優先リフレッシュレート", 0x0064B541, [
+            new("アプリに任せる", 0), new("使用可能な最高値", 1)]),
+        new("ambient_occlusion", "アンビエントオクルージョン", 0x00667329, [
+            new("オフ", 0), new("低", 1), new("中", 2), new("高", 3)]),
+        new("vsync_tear", "垂直同期：ティアリング制御", 0x005A375C, [
+            new("無効", 0x96861077), new("有効", 0x99941284)]),
+        new("ogl_present", "Vulkan / OpenGL表示方法", 0x20D690F8, [
+            new("無効を優先", 0), new("有効を優先", 1), new("自動", 2)]),
+        new("ogl_quality", "OpenGL：レンダリング品質", 0x20797D6C, [
+            new("高画質", 0xfffffff6), new("画質", 0),
+            new("パフォーマンス", 10), new("ハイパフォーマンス", 20)])
     ];
 
     internal static string BackupFolder => Path.Combine(
@@ -193,7 +239,7 @@ internal static class NvidiaGlobalDrs
     internal static IReadOnlyList<Change> Preview(IEnumerable<(string Key, uint Value)> choices)
     {
         var changes = choices.ToArray();
-        if (changes.Length is < 1 or > 4 || changes.Select(x => x.Key).Distinct().Count() != changes.Length)
+        if (changes.Length < 1 || changes.Length > Settings.Count || changes.Select(x => x.Key).Distinct().Count() != changes.Length)
             throw new ArgumentException("変更対象が不正です。");
         using var con = new Connection();
         var result = new List<Change>();
@@ -230,7 +276,7 @@ internal static class NvidiaGlobalDrs
     internal static string Apply(IReadOnlyList<Change> changes)
     {
         if (changes.Count == 0) return "変更はありません。";
-        if (changes.Count > 4 || changes.Select(x => x.Key).Distinct().Count() != changes.Count)
+        if (changes.Count > Settings.Count || changes.Select(x => x.Key).Distinct().Count() != changes.Count)
             throw new InvalidDataException("変更内容が不正です。");
         using var con = new Connection();
         Recheck(con, changes);
@@ -310,7 +356,7 @@ internal static class NvidiaGlobalDrs
             throw new InvalidDataException("NVIDIAバックアップのサイズが不正です。");
         var backup = JsonSerializer.Deserialize<Backup>(File.ReadAllText(LatestBackup))
             ?? throw new InvalidDataException("NVIDIAバックアップの形式が不正です。");
-        if (backup.Changes.Count is < 1 or > 4 ||
+        if (backup.Changes.Count < 1 || backup.Changes.Count > Settings.Count ||
             backup.Changes.Select(x => x.Key).Distinct().Count() != backup.Changes.Count)
             throw new InvalidDataException("復元データが不正です。");
         using var con = new Connection();
@@ -340,6 +386,8 @@ internal static class NvidiaGlobalDrs
 
     internal static bool VerifyContract() =>
         StructSize == 12320 && CurrentValueOffset == 8220 &&
-        Settings.Count == 4 && Settings.Select(x => x.Id).Distinct().Count() == 4 &&
+        Settings.Count >= 24 &&
+        Settings.Select(x => x.Id).Distinct().Count() == Settings.Count &&
+        Settings.Select(x => x.Key).Distinct().Count() == Settings.Count &&
         Settings.All(x => x.Options.Select(y => y.Value).Distinct().Count() == x.Options.Count);
 }
