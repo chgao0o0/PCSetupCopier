@@ -252,6 +252,70 @@ internal static class NvidiaGlobalDrs
         return states;
     }
 
+    internal sealed record Compatibility(string Key, bool CanStage, string Reason);
+
+    // Pure compatibility check used before importing values from another PC.
+    // Unknown overrides are blocked even if the requested value is known,
+    // because the original might not be safely restorable on failure.
+    internal static IReadOnlyList<Compatibility> AssessCompatibility(
+        IReadOnlyDictionary<string, uint> requested, IEnumerable<State> driverStates)
+    {
+        var installed = driverStates.ToDictionary(x => x.Key, StringComparer.Ordinal);
+        var catalog = Settings.ToDictionary(x => x.Key, StringComparer.Ordinal);
+        var result = new List<Compatibility>();
+        foreach (var (key, value) in requested)
+        {
+            if (!catalog.TryGetValue(key, out var definition))
+            {
+                result.Add(new(key, false, "この版で未対応の設定"));
+                continue;
+            }
+            if (!definition.Options.Any(x => x.Value == value))
+            {
+                result.Add(new(key, false, "未対応の設定値"));
+                continue;
+            }
+            if (!installed.TryGetValue(key, out var actual) || !actual.Available)
+            {
+                result.Add(new(key, false, "このPCのドライバーでは取得できない"));
+                continue;
+            }
+            if (actual.IsExplicit && (actual.Value is not uint existing ||
+                !definition.Options.Any(x => x.Value == existing)))
+            {
+                result.Add(new(key, false, "不明な既存値があるため安全に復元できない"));
+                continue;
+            }
+            if (actual.Value == value)
+            {
+                result.Add(new(key, false, "現在の設定と同じ"));
+                continue;
+            }
+            result.Add(new(key, true, "変更候補にできる（実機の書込検証は別途必要）"));
+        }
+        return result;
+    }
+
+    internal static bool VerifyCompatibilityContract()
+    {
+        var desired = new Dictionary<string, uint> {
+            ["power"] = 1, ["vsync"] = 0x60925292,
+            ["texture"] = 10, ["unknown"] = 1
+        };
+        var states = new State[] {
+            new("power", 5, false),
+            new("vsync", 0x60925292, true),
+            new("texture", 0xDEADBEEF, true)
+        };
+        var outcome = AssessCompatibility(desired, states).ToDictionary(x => x.Key);
+        return outcome["power"].CanStage &&
+            !outcome["vsync"].CanStage &&
+            !outcome["texture"].CanStage &&
+            !outcome["unknown"].CanStage &&
+            !AssessCompatibility(new Dictionary<string,uint> { ["power"] = 1 },
+                [new State("power", null, false, false)])[0].CanStage;
+    }
+
     internal static string Label(Setting item, uint? value)
     {
         if (!value.HasValue) return "未登録／取得不可";
@@ -415,5 +479,6 @@ internal static class NvidiaGlobalDrs
         Settings.Count >= 30 &&
         Settings.Select(x => x.Id).Distinct().Count() == Settings.Count &&
         Settings.Select(x => x.Key).Distinct().Count() == Settings.Count &&
+        VerifyCompatibilityContract() &&
         Settings.All(x => x.Options.Select(y => y.Value).Distinct().Count() == x.Options.Count);
 }
