@@ -9,7 +9,7 @@ internal static class NvidiaGlobalDrs
 {
     internal sealed record Option(string Label, uint Value);
     internal sealed record Setting(string Key, string Title, uint Id, IReadOnlyList<Option> Options);
-    internal sealed record State(string Key, uint? Value, bool IsExplicit);
+    internal sealed record State(string Key, uint? Value, bool IsExplicit, bool Available = true);
     internal sealed record Change(string Key, uint? Before, uint After, bool BeforeExplicit);
     private sealed record Backup(DateTimeOffset Timestamp, List<Change> Changes);
 
@@ -173,7 +173,7 @@ internal static class NvidiaGlobalDrs
                 for (int i = 0; i < StructSize; i++) Marshal.WriteByte(data, i, 0);
                 Marshal.WriteInt32(data, Version);
                 int result = get(session, profile, item.Id, data);
-                if (result == -160) return new State(item.Key, null, false);
+                if (result == -160) return new State(item.Key, null, false, false);
                 Check(result, "DRS_GetSetting " + item.Title);
                 if (Marshal.ReadInt32(data, TypeOffset) != 0)
                     throw new InvalidDataException("NVIDIA設定がDWORD形式ではありません: " + item.Title);
@@ -226,7 +226,17 @@ internal static class NvidiaGlobalDrs
     internal static IReadOnlyList<State> ReadAll()
     {
         using var connection = new Connection();
-        return Settings.Select(connection.Read).ToArray();
+        var states = new List<State>();
+        foreach (var item in Settings)
+        {
+            try { states.Add(connection.Read(item)); }
+            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or NotSupportedException)
+            {
+                // An unavailable setting must not prevent reading other settings.
+                states.Add(new State(item.Key, null, false, false));
+            }
+        }
+        return states;
     }
 
     internal static string Label(Setting item, uint? value)
@@ -250,6 +260,9 @@ internal static class NvidiaGlobalDrs
             if (!setting.Options.Any(x => x.Value == value))
                 throw new InvalidDataException("NVIDIA設定値が不正です。");
             var state = con.Read(setting);
+            if (!state.Available)
+                throw new NotSupportedException(setting.Title +
+                    "はこのドライバーで取得できないため、自動変更しません。");
             if (state.Value == value) continue;
             // An unrecognized override cannot be recreated safely after a failed apply.
             // Never alter it until the driver-specific value can be validated.
@@ -268,7 +281,7 @@ internal static class NvidiaGlobalDrs
         {
             var setting = Settings.Single(x => x.Key == change.Key);
             var now = con.Read(setting);
-            if (now.Value != change.Before || now.IsExplicit != change.BeforeExplicit)
+            if (!now.Available || now.Value != change.Before || now.IsExplicit != change.BeforeExplicit)
                 throw new InvalidOperationException("NVIDIA設定が確認中に変更されました: " + setting.Title);
         }
     }
