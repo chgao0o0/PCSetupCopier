@@ -45,7 +45,7 @@ jobs:
       - name: Write build metadata
         shell: pwsh
         run: |
-          $info = @{ commit = "${{ github.sha }}"; version = "M8.3" } | ConvertTo-Json -Compress
+          $info = @{ commit = "${{ github.sha }}"; version = "M8.4" } | ConvertTo-Json -Compress
           Set-Content -LiteralPath "publish/build-info.json" -Value $info -Encoding utf8
       - name: Write executable checksum
         shell: pwsh
@@ -59,6 +59,17 @@ jobs:
           $p = Start-Process -FilePath $exe -ArgumentList "--verify-package" -WorkingDirectory (Resolve-Path "./publish").Path -Wait -PassThru
           Write-Host "Package verifier exit code: $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { throw "Package preflight failed with exit code $($p.ExitCode)" }
+      - name: Run actual WinForms layout regression
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $exe = (Resolve-Path "./publish/PCSetupCopier.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--verify-ui" -WorkingDirectory (Resolve-Path "./publish").Path -Wait -PassThru
+          Write-Host "WinForms geometry test exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path "./publish/ui-layout-error.txt") { Get-Content "./publish/ui-layout-error.txt" }
+            throw "WinForms layout regression failed"
+          }
       - name: Publish verified package to GitHub Releases
         shell: pwsh
         env:
@@ -66,5 +77,5 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP "PCSetupCopier-win-x64.zip"
           Compress-Archive -Path "publish/*" -DestinationPath $archive -CompressionLevel Optimal
-          gh release create "build-${{ github.sha }}" "$archive" --repo "$env:GITHUB_REPOSITORY" --target "${{ github.sha }}" --title "PC Setup Copier M8.3" --notes "Verified Windows x64 package (M8.1). Includes executable, build-info.json, SHA-256 checksum and package preflight." --latest
+          gh release create "build-${{ github.sha }}" "$archive" --repo "$env:GITHUB_REPOSITORY" --target "${{ github.sha }}" --title "PC Setup Copier M8.4" --notes "Verified Windows x64 package (M8.1). Includes executable, build-info.json, SHA-256 checksum and package preflight." --latest
           if ($LASTEXITCODE -ne 0) { throw "Cannot publish a verified update release" }
