@@ -9,7 +9,6 @@ namespace PCSetupCopier;
 internal static class UpdateManager
 {
     private const string Repository = "chgao0o0/PCSetupCopier";
-    private const string Artifact = "PCSetupCopier-win-x64";
     private const string ExeName = "PCSetupCopier.exe";
 
     internal static async Task<string> CheckAndStageAsync(IProgress<string> progress, CancellationToken cancellationToken)
@@ -23,31 +22,26 @@ internal static class UpdateManager
         using var installed = JsonDocument.Parse(await File.ReadAllTextAsync(installedMarker, cancellationToken));
         var oldSha = installed.RootElement.GetProperty("commit").GetString() ?? "";
 
-        // Independent GitHub requests are run concurrently. The GitHub CLI reports
-        // authentication errors itself; a separate "gh auth status" is redundant.
-        elapsed.Report("GitHubで最新版を確認しています…");
-        Task<string> runsTask = GhAsync(
-            ["run", "list", "-R", Repository, "--workflow", "build-windows.yml",
-             "--branch", "main", "--status", "success", "--limit", "1",
-             "--json", "databaseId,headSha"], cancellationToken);
+        // A signed-in user retrieves the build from this private repository's
+        // latest GitHub Release, independent of Actions artifact storage quotas.
+        elapsed.Report("GitHub Releasesで最新版を確認しています…");
+        Task<string> releaseTask = GhAsync(
+            ["api", "repos/chgao0o0/PCSetupCopier/releases/latest",
+                "--jq", ".tag_name"], cancellationToken);
         Task<string> branchTask = GhAsync(
             ["api", "repos/chgao0o0/PCSetupCopier/commits/main", "--jq", ".sha"],
             cancellationToken);
-        await Task.WhenAll(runsTask, branchTask);
-        using var runs = JsonDocument.Parse(await runsTask);
-        if (runs.RootElement.GetArrayLength() == 0)
-            throw new InvalidOperationException("成功済みのWindowsビルドが見つかりません。");
+        await Task.WhenAll(releaseTask, branchTask);
         string branchSha = (await branchTask).Trim();
+        string latestTag = (await releaseTask).Trim();
         if (branchSha.Length != 40 || !branchSha.All(Uri.IsHexDigit))
             throw new InvalidDataException("mainのコミットIDを取得できませんでした。");
-
-        var run = runs.RootElement[0];
-        var latestSha = run.GetProperty("headSha").GetString() ?? "";
-        var runId = run.GetProperty("databaseId").GetInt64();
-        if (latestSha.Length != 40)
-            throw new InvalidDataException("GitHubから正しいコミットIDを取得できませんでした。");
+        if (!latestTag.StartsWith("build-", StringComparison.Ordinal) ||
+            latestTag.Length != 46 || !latestTag[6..].All(Uri.IsHexDigit))
+            throw new InvalidDataException("GitHub Releaseのタグが不正です。");
+        string latestSha = latestTag[6..];
         if (!string.Equals(latestSha, branchSha, StringComparison.OrdinalIgnoreCase))
-            return "最新版のビルドはまだ成功していません。古いビルドを最新版として扱わず、GitHub Actionsの完了を確認してください。";
+            return "最新版の配布パッケージはまだ準備されていません。古い版を最新版として扱わず、GitHub Releasesを確認してください。";
         if (string.Equals(oldSha, latestSha, StringComparison.OrdinalIgnoreCase))
             return "すでに最新版です。";
 
@@ -62,8 +56,13 @@ internal static class UpdateManager
         try
         {
             elapsed.Report("更新パッケージをダウンロードしています…");
-            await GhAsync(["run", "download", runId.ToString(), "-R", Repository,
-                "-n", Artifact, "-D", stage], cancellationToken);
+            await GhAsync(["release", "download", latestTag, "-R", Repository,
+                "-p", "PCSetupCopier-win-x64.zip", "-D", stage], cancellationToken);
+            string archive = Path.Combine(stage, "PCSetupCopier-win-x64.zip");
+            if (!File.Exists(archive) || new FileInfo(archive).Length < 100_000)
+                throw new InvalidDataException("GitHub Releaseの更新ZIPが不足しています。");
+            System.IO.Compression.ZipFile.ExtractToDirectory(archive, stage, overwriteFiles: true);
+            File.Delete(archive);
 
             string stagedExe = Path.Combine(stage, ExeName);
             string stagedMarker = Path.Combine(stage, "build-info.json");
