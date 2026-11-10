@@ -1,20 +1,35 @@
 namespace PCSetupCopier;
 
-// Guided operations, always staging before writing.
-// Windows and NVIDIA remain separate explicitly confirmed apply transactions.
+// Guided setup: visually consistent cards with a fixed action footer.
+// All buttons stage preferences; applying Windows and NVIDIA remains separately confirmed.
 internal sealed class GamingSetupPage : UserControl
 {
+    private static readonly Color Canvas = Color.FromArgb(245, 247, 251);
+    private static readonly Color Ink = Color.FromArgb(27, 39, 61);
+    private static readonly Color Muted = Color.FromArgb(102, 116, 138);
+    private static readonly Color Accent = Color.FromArgb(57, 102, 220);
+    private static readonly Color Border = Color.FromArgb(224, 230, 240);
+
     private readonly Action<GamingTransferBundle.WindowsPreferences> stageWindows;
     private readonly Func<IReadOnlyDictionary<string, uint>, string> stageNvidia;
     private readonly Action<string> preset;
     private readonly Action showWindows, showNvidia;
     private readonly TextBox details = new() {
-        Dock = DockStyle.Fill, ReadOnly = true, Multiline = true, ScrollBars = ScrollBars.Vertical,
-        Font = new Font("Yu Gothic UI", 10), BackColor = Color.White
+        Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
+        ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
+        Font = new Font("Yu Gothic UI", 9.6f), BackColor = Color.White,
+        ForeColor = Color.FromArgb(72, 87, 110)
     };
     private readonly Label status = new() {
-        Dock = DockStyle.Fill, ForeColor = Color.FromArgb(39, 72, 113),
-        TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
+        Dock = DockStyle.Fill, ForeColor = Color.FromArgb(61, 82, 120),
+        TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true,
+        Font = new Font("Yu Gothic UI", 9.5f)
+    };
+    private readonly Panel scroller = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Canvas };
+    private readonly TableLayoutPanel content = new() {
+        ColumnCount = 1, RowCount = 5, AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Canvas,
+        Margin = Padding.Empty, Padding = new Padding(18, 14, 18, 16)
     };
 
     internal GamingSetupPage(
@@ -27,82 +42,195 @@ internal sealed class GamingSetupPage : UserControl
         this.preset = preset;
         this.showWindows = showWindows;
         this.showNvidia = showNvidia;
+        BackColor = Canvas;
 
-        BackColor = Color.FromArgb(248, 250, 253);
-        var root = new TableLayoutPanel {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(18)
+        var shell = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Canvas
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 59));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        root.Controls.Add(new Label {
-            Text = "かんたんゲームPC設定", Dock = DockStyle.Fill,
-            Font = new Font("Yu Gothic UI", 17, FontStyle.Bold)
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 152));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 195));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 134));
+
+        var heading = new TableLayoutPanel { Dock = DockStyle.Fill,
+            RowCount = 2, ColumnCount = 1, Margin = Padding.Empty };
+        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        heading.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        heading.Controls.Add(new Label {
+            Text = "ゲームPCのセットアップ", Dock = DockStyle.Fill,
+            Font = new Font("Yu Gothic UI", 20, FontStyle.Bold),
+            ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
+        heading.Controls.Add(new Label {
+            Text = "設定を選んで準備。確認してから適用。変更内容はいつでも見直せます。",
+            Dock = DockStyle.Fill, ForeColor = Muted,
+            Font = new Font("Yu Gothic UI", 9.6f)
+        }, 0, 1);
+        content.Controls.Add(heading, 0, 0);
 
-        var presets = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
-        Button(presets, "FPS重視を準備", () => StagePreset("fps"), true);
-        Button(presets, "バランス重視を準備", () => StagePreset("balanced"));
-        Button(presets, "画質重視を準備", () => StagePreset("visual"));
-        root.Controls.Add(presets, 0, 1);
-
-        var heading = new Label {
-            Text = "PC丸ごと設定移植（Windows＋NVIDIAの対応項目）",
-            Dock = DockStyle.Fill,
-            Font = new Font("Yu Gothic UI", 12, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
+        content.Controls.Add(SectionTitle("QUICK PRESETS", "おすすめの設定を選択"), 0, 1);
+        var presetGrid = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Margin = Padding.Empty, Padding = Padding.Empty
         };
-        root.Controls.Add(heading, 0, 2);
+        for (int i = 0; i < 3; i++)
+            presetGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3f));
+        presetGrid.Controls.Add(PresetCard("01", "FPS重視",
+            "パフォーマンスを優先", "fps", true), 0, 0);
+        presetGrid.Controls.Add(PresetCard("02", "バランス",
+            "速度と品質のバランス", "balanced", false), 1, 0);
+        presetGrid.Controls.Add(PresetCard("03", "画質重視",
+            "映像の品質を優先", "visual", false), 2, 0);
+        content.Controls.Add(presetGrid, 0, 2);
 
-        var transferButtons = new FlowLayoutPanel {
-            Dock = DockStyle.Fill, WrapContents = true
+        var transfer = Card();
+        transfer.Margin = new Padding(0, 12, 0, 0);
+        var transferContent = new TableLayoutPanel {
+            Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 2,
+            Margin = Padding.Empty, Padding = new Padding(18, 12, 18, 10)
         };
-        Button(transferButtons, "① 自分のPC設定を1ファイルに保存", ExportAll, true);
-        Button(transferButtons, "② 友達の設定ファイルを読み込む", ImportAll);
-        root.Controls.Add(transferButtons, 0, 3);
+        transferContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        transferContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        transferContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        transferContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        transferContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var transferTitle = new Label {
+            Text = "PC間の設定移植", Dock = DockStyle.Fill, ForeColor = Ink,
+            Font = new Font("Yu Gothic UI", 13.2f, FontStyle.Bold)
+        };
+        transferContent.Controls.Add(transferTitle, 0, 0);
+        transferContent.SetColumnSpan(transferTitle, 2);
+        var save = ActionButton("自分のPC設定を保存", true);
+        save.Click += (_, _) => ExportAll();
+        var load = ActionButton("友達の設定を読み込む", false);
+        load.Click += (_, _) => ImportAll();
+        save.Margin = new Padding(0, 0, 9, 5);
+        load.Margin = new Padding(9, 0, 0, 5);
+        transferContent.Controls.Add(save, 0, 1);
+        transferContent.Controls.Add(load, 1, 1);
+        transferContent.Controls.Add(Description(
+            "STEP 1  /  Windows + NVIDIAの対応設定を1つのJSONファイルに保存"), 0, 2);
+        transferContent.Controls.Add(Description(
+            "STEP 2  /  対応状況を確認し、適用候補として読み込み"), 1, 2);
+        transfer.Controls.Add(transferContent);
+        content.Controls.Add(transfer, 0, 3);
 
-        details.Text = "使い方:\r\n" +
-            "1. 自分のPCで「保存」を押して移植用JSONを作る\r\n" +
-            "2. 友達のPCで「読み込む」を押して設定候補にする\r\n" +
-            "3. Windows自由設定とNVIDIAグローバルを確認し、各画面の「一括適用」で確定\r\n\r\n" +
-            "読み込み・プリセット選択だけではPCの設定は変更しません。\r\n" +
-            "移植先で存在しない電源プランや、対応しないNVIDIA設定は除外します。\r\n" +
-            "NVIDIA実機の読み書きは検証が必要なので、最初は小さな変更で試してください。";
-        root.Controls.Add(details, 0, 4);
+        var help = Card();
+        help.Margin = new Padding(0, 12, 0, 0);
+        var helpLayout = new TableLayoutPanel {
+            Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(16, 8, 16, 8)
+        };
+        helpLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        helpLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        helpLayout.Controls.Add(new Label {
+            Text = "操作ガイド・実行結果", Dock = DockStyle.Fill,
+            Font = new Font("Yu Gothic UI", 10.3f, FontStyle.Bold),
+            ForeColor = Ink
+        }, 0, 0);
+        helpLayout.Controls.Add(details, 0, 1);
+        help.Controls.Add(helpLayout);
+        content.Controls.Add(help, 0, 4);
+
+        details.Text = "① 目的に合わせてプリセットを選ぶか、別PCの設定ファイルを読み込む。\r\n" +
+            "② 各設定画面で希望値を確認し、必要な項目だけ一括適用。\r\n" +
+            "※ この画面ではPCの設定を変更しません。NVIDIAの実機での適用・復元は未検証です。";
+
+        scroller.Controls.Add(content);
+        scroller.ClientSizeChanged += (_, _) => FitContent();
+        shell.Controls.Add(scroller, 0, 0);
 
         var footer = new TableLayoutPanel {
-            Dock = DockStyle.Fill, ColumnCount = 3, Margin = new Padding(0),
-            BackColor = Color.FromArgb(234, 242, 252)
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            BackColor = Color.White, Padding = new Padding(16, 10, 16, 10)
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 187));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 177));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 177));
+        status.Padding = new Padding(0, 4, 0, 0);
+        status.Text = "準備のみ。確認するまでは変更されません。";
         footer.Controls.Add(status, 0, 0);
-        var windows = new Button { Text = "Windows設定を確認", Dock = DockStyle.Fill,
-            Margin = new Padding(5, 8, 5, 8) };
+        var windows = ActionButton("Windows設定を確認", false);
+        windows.Margin = new Padding(4, 0, 6, 0);
         windows.Click += (_, _) => showWindows();
         footer.Controls.Add(windows, 1, 0);
-        var nvidia = new Button { Text = "NVIDIA設定を確認", Dock = DockStyle.Fill,
-            Margin = new Padding(5, 8, 5, 8) };
+        var nvidia = ActionButton("NVIDIA設定を確認", true);
+        nvidia.Margin = new Padding(6, 0, 0, 0);
         nvidia.Click += (_, _) => showNvidia();
         footer.Controls.Add(nvidia, 2, 0);
-        root.Controls.Add(footer, 0, 5);
-        Controls.Add(root);
-        status.Text = "設定候補を準備してから、各画面で内容確認と適用を行います。";
+        shell.Controls.Add(footer, 0, 1);
+        Controls.Add(shell);
+        FitContent();
     }
 
-    private static void Button(FlowLayoutPanel host, string title, Action handler, bool primary = false)
+    private void FitContent()
     {
-        var button = new Button { Text = title, AutoSize = true, Height = 42,
-            Margin = new Padding(3, 4, 8, 4),
-            BackColor = primary ? Color.FromArgb(39, 100, 180) : SystemColors.Control,
-            ForeColor = primary ? Color.White : Color.Black };
-        button.Click += (_, _) => handler();
-        host.Controls.Add(button);
+        int width = Math.Max(560, scroller.ClientSize.Width -
+            SystemInformation.VerticalScrollBarWidth - 2);
+        if (content.Width != width) content.Width = width;
     }
+
+    private static Label SectionTitle(string overline, string caption) => new() {
+        Dock = DockStyle.Fill, Text = overline + "     " + caption,
+        ForeColor = Muted, Font = new Font("Yu Gothic UI", 9.5f, FontStyle.Bold),
+        TextAlign = ContentAlignment.MiddleLeft
+    };
+
+    private static Panel Card()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.White,
+            Margin = new Padding(0, 0, 10, 8) };
+        panel.Paint += (_, e) => {
+            using var pen = new Pen(Border);
+            e.Graphics.DrawRectangle(pen, 0, 0,
+                Math.Max(0, panel.Width - 1), Math.Max(0, panel.Height - 1));
+        };
+        return panel;
+    }
+
+    private Panel PresetCard(string number, string name, string description,
+        string id, bool highlighted)
+    {
+        var card = Card();
+        card.Margin = new Padding(0, 0, 11, 7);
+        var body = new TableLayoutPanel { Dock = DockStyle.Fill,
+            RowCount = 3, Padding = new Padding(13, 10, 13, 12) };
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 31));
+        body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        body.Controls.Add(new Label {
+            Text = number + "   " + name, Dock = DockStyle.Fill,
+            Font = new Font("Yu Gothic UI", 12.3f, FontStyle.Bold),
+            ForeColor = Ink
+        }, 0, 0);
+        body.Controls.Add(Description(description), 0, 1);
+        var button = ActionButton("この設定を準備", highlighted);
+        button.Click += (_, _) => StagePreset(id);
+        body.Controls.Add(button, 0, 2);
+        card.Controls.Add(body);
+        return card;
+    }
+
+    private static Label Description(string text) => new() {
+        Text = text, Dock = DockStyle.Fill,
+        Font = new Font("Yu Gothic UI", 9.1f), ForeColor = Muted,
+        AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft
+    };
+
+    private static Button ActionButton(string title, bool primary) => new() {
+        Text = title, Dock = DockStyle.Fill,
+        FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+        Font = new Font("Yu Gothic UI", 9.4f, FontStyle.Bold),
+        BackColor = primary ? Accent : Color.FromArgb(240, 244, 251),
+        ForeColor = primary ? Color.White : Color.FromArgb(44, 72, 117),
+        UseVisualStyleBackColor = false,
+        FlatAppearance = { BorderSize = 0 }
+    };
 
     private void StagePreset(string id)
     {
