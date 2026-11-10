@@ -93,8 +93,19 @@ internal static class NvidiaQuickTransfer
             var restored = JsonSerializer.Deserialize<TransferData>(
                 JsonSerializer.Serialize(test))!;
             var result = Validate(restored);
-            return result.Values.Count == 2 && result.Unrecognized == 1 &&
-                result.Values["power"] == 1;
+            if (result.Values.Count != 2 || result.Unrecognized != 1 ||
+                result.Values["power"] != 1) return false;
+            bool Reject(TransferData invalid)
+            {
+                try { Validate(invalid); return false; }
+                catch (InvalidDataException) { return true; }
+            }
+            return Reject(test with { Format = "unknown" }) &&
+                Reject(test with { Revision = 2 }) &&
+                Reject(test with { Values = new Dictionary<string, uint>() }) &&
+                Reject(test with { Values = new Dictionary<string, uint> {
+                    ["power"] = uint.MaxValue
+                } });
         }
         catch { return false; }
     }
