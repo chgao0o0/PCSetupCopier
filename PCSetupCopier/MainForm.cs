@@ -97,7 +97,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M7.4 (NVIDIA画面レイアウト修正)";
+        Text = "PC Setup Copier — M7.5 (NVIDIAかんたん設定移植)";
         Size = new Size(1180, 760);
         MinimumSize = new Size(860, 560);
         StartPosition = FormStartPosition.CenterScreen;
