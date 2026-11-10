@@ -469,6 +469,11 @@ internal sealed class MainForm : Form
         };
         logsPage.Controls.Add(new DiagnosticLogPage { Dock = DockStyle.Fill });
         tabs.TabPages.Add(logsPage);
+        var fpsComparePage = new TabPage("FPS測定結果の比較") {
+            BackColor = Color.FromArgb(248, 250, 253)
+        };
+        fpsComparePage.Controls.Add(new FpsComparePage { Dock = DockStyle.Fill });
+        tabs.TabPages.Add(fpsComparePage);
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -533,10 +538,10 @@ internal sealed class MainForm : Form
             "ダッシュボード", "Windows自由設定", "プリセット", "ゲーム・モニター",
             "ゲーム設定のヒント", "NVIDIAガイド", "NVIDIAグローバル",
             "診断レポート", "PCからコピー", "バックアップ・復元", "変更前後の比較",
-            "かんたん設定・移植", "復元センター", "操作・エラーログ"
+            "かんたん設定・移植", "復元センター", "操作・エラーログ", "FPS比較"
         ];
         // Prominently show the single guided starting point, without renumbering tabs.
-        int[] order = [11, 0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 12, 13, 10];
+        int[] order = [11, 0, 1, 2, 3, 4, 6, 5, 14, 7, 8, 9, 12, 13, 10];
         string? lastGroup = null;
         foreach (int i in order)
         {
