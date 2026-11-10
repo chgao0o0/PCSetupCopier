@@ -44,6 +44,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         AddButton(actions, "バランス重視", () => StageProfile("balanced"));
         AddButton(actions, "画質重視", () => StageProfile("visual"));
         AddButton(actions, "現在値を希望値に取り込む", CaptureCurrent);
+        AddButton(actions, "変更前後をプレビュー", PreviewDriver);
         layout.Controls.Add(actions, 0, 1);
 
         grid.Columns.Add(new DataGridViewCheckBoxColumn {
@@ -304,6 +305,39 @@ internal sealed class NvidiaGlobalPage : UserControl
             status.Text = "「" + name + "」を登録しました。読み込みボタンで希望値にセットできます。";
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "取り込み失敗"); }
+    }
+
+    private void PreviewDriver()
+    {
+        if (!loaded)
+        {
+            MessageBox.Show(this, "まず現在のNVIDIA設定を取得してください。");
+            return;
+        }
+        try
+        {
+            var selected = Selected();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show(this, "適用対象がありません。先に項目へチェックしてください。");
+                return;
+            }
+            var plan = NvidiaGlobalDrs.Preview(selected.Select(x => (x.Key, x.Value)));
+            string details = plan.Count == 0
+                ? "選択項目に変更予定はありません。"
+                : string.Join("\n", plan.Select(x => {
+                    var item = NvidiaGlobalDrs.Settings.Single(y => y.Key == x.Key);
+                    return item.Title + ": " + NvidiaGlobalDrs.Label(item, x.Before) +
+                        " → " + NvidiaGlobalDrs.Label(item, x.After);
+                }));
+            MessageBox.Show(this, details + "\n\nこれは読み取りと比較のみです。まだNVIDIA設定を変更していません。",
+                "NVIDIA変更内容の確認", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "NVIDIA差分確認", MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 
     private void ApplyDriver()
