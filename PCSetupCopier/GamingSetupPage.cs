@@ -205,8 +205,11 @@ internal sealed class GamingSetupPage : UserControl
             Application.DoEvents();
 
             int usable = page.scroller.ClientSize.Width;
-            if (usable < width - 30)
-                throw new InvalidOperationException("セットアップ画面のスクロール領域が狭すぎます: " + usable);
+            // CI runners may clamp larger windows to the virtual desktop.
+            // Verify the actual client area rather than the requested frame size.
+            if (usable < page.ClientSize.Width - 30 || usable < 590)
+                throw new InvalidOperationException("セットアップ画面のスクロール領域が狭すぎます: " +
+                    usable + " / " + page.ClientSize.Width);
             if (page.content.Width < usable - 35)
                 throw new InvalidOperationException("設定カードが横幅いっぱいに展開されていません: " +
                     page.content.Width + " / " + usable);
