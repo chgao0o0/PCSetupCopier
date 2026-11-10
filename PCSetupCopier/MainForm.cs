@@ -93,6 +93,7 @@ internal sealed class MainForm : Form
     private PcSnapshot? current;
     private PcSnapshot? source;
     private readonly Button updateButton = new();
+    private readonly CancellationTokenSource updateCancellation = new();
     private readonly Button applyButton = new();
     private readonly Button restoreButton = new();
     private readonly HashSet<string> selectedIds = new(StringComparer.Ordinal);
@@ -101,8 +102,11 @@ internal sealed class MainForm : Form
     {
         Text = "PC Setup Copier — M8.0 (かんたん設定・丸ごと移植・復元)";
         Size = new Size(1180, 760);
-        MinimumSize = new Size(860, 560);
+        MinimumSize = new Size(980, 660);
+        AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterScreen;
+        FormClosing += (_, _) => updateCancellation.Cancel();
+        FormClosed += (_, _) => updateCancellation.Dispose();
         Font = new Font("Yu Gothic UI", 10f);
         BackColor = Color.FromArgb(248, 250, 253);
         var title = new Label { Text = "PC Setup Copier", Dock = DockStyle.Top, Height = 48,
@@ -616,8 +620,10 @@ internal sealed class MainForm : Form
         updateButton.Enabled = false;
         try
         {
-            var progress = new Progress<string>(message => status.Text = message);
-            string result = await UpdateManager.CheckAndStageAsync(progress, CancellationToken.None);
+            var progress = new Progress<string>(message => {
+                if (!IsDisposed && !Disposing) status.Text = message;
+            });
+            string result = await UpdateManager.CheckAndStageAsync(progress, updateCancellation.Token);
             if (result.Contains("アプリを終了して更新します。", StringComparison.Ordinal))
             {
                 // The staged helper waits for this process to exit. Never block here with a dialog.
@@ -626,14 +632,22 @@ internal sealed class MainForm : Form
             }
             MessageBox.Show(this, result, "更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
+        catch (OperationCanceledException) when (updateCancellation.IsCancellationRequested)
+        {
+            // Closing the app cancels update downloads and their child processes.
+        }
         catch (Exception ex)
         {
+            if (IsDisposed || Disposing) return;
+            DiagnosticLog.Record("Update", "Failed", ex);
             MessageBox.Show(this, ex.Message, "更新エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
         {
-            updateButton.Enabled = true;
-            if (!IsDisposed) UpdateStatus();
+            if (!IsDisposed && !Disposing) {
+                updateButton.Enabled = true;
+                UpdateStatus();
+            }
         }
     }
 
