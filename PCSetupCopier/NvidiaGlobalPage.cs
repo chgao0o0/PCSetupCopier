@@ -321,6 +321,21 @@ internal sealed class NvidiaGlobalPage : UserControl
         restore.Enabled = NvidiaGlobalDrs.CanRestore;
     }
 
+    internal void StageSetupProfile(string profile) => StageProfile(profile);
+
+    internal string StageExternal(IReadOnlyDictionary<string, uint> values)
+    {
+        if (values.Count == 0) return "移植対象なし";
+        if (!loaded) RefreshDriver();
+        if (!loaded) return "NVIDIAドライバーを取得できず、適用候補はセットしていません。";
+        Stage(values);
+        sections.SelectedIndex = 0;
+        int staged = grid.Rows.Cast<DataGridViewRow>()
+            .Count(x => x.Cells["Apply"].Value is true);
+        DiagnosticLog.Record("NVIDIAImport", "Staged " + staged + " items");
+        return staged + "項目を適用候補にしました。未対応設定は除外しました。";
+    }
+
     private void StageProfile(string type)
     {
         if (!loaded)
@@ -520,11 +535,13 @@ internal sealed class NvidiaGlobalPage : UserControl
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             apply.Enabled = false;
             var result = NvidiaGlobalDrs.Apply(changes);
+            DiagnosticLog.Record("NVIDIAApply", "Success " + changes.Count + " items");
             RefreshDriver();
             MessageBox.Show(this, result, "NVIDIA設定", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
+            DiagnosticLog.Record("NVIDIAApply", "Failed", ex);
             RefreshDriver();
             MessageBox.Show(this, ex.Message, "NVIDIA設定適用失敗",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -538,6 +555,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         try
         {
             var result = NvidiaGlobalDrs.Restore();
+            DiagnosticLog.Record("NVIDIARestore", "Success");
             RefreshDriver();
             MessageBox.Show(this, result, "NVIDIA設定復元", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
