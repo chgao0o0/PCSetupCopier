@@ -29,12 +29,11 @@ internal sealed class NvidiaGlobalPage : UserControl
     {
         BackColor = Color.FromArgb(248, 250, 253);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
-            RowCount = 5, Padding = new Padding(14) };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 119));
+            RowCount = 4, Padding = new Padding(12) };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 95));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
 
         layout.Controls.Add(new Label {
             Text = "NVIDIA グローバル3D設定（NVAPI）", Dock = DockStyle.Fill,
@@ -76,18 +75,21 @@ internal sealed class NvidiaGlobalPage : UserControl
             if (grid.IsCurrentCellDirty) grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         grid.DataError += (_, e) => { e.ThrowException = false; };
-        layout.Controls.Add(grid, 0, 2);
+        var sections = new TabControl { Dock = DockStyle.Fill };
+        var settingsSection = new TabPage("設定一覧") { Padding = new Padding(4) };
+        settingsSection.Controls.Add(grid);
+        sections.TabPages.Add(settingsSection);
 
-        var personal = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        var saveLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+        var personal = new TableLayoutPanel { Dock = DockStyle.Top, Height = 114, RowCount = 2, Padding = new Padding(8) };
+        personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        var saveLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
         saveLine.Controls.Add(new Label { Text = "自分のNVIDIAプリセット", AutoSize = true,
             Margin = new Padding(0, 10, 8, 0) });
         saveLine.Controls.Add(templateName);
         AddButton(saveLine, "選択値を保存", SaveTemplate);
         personal.Controls.Add(saveLine, 0, 0);
-        var loadLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+        var loadLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
         loadLine.Controls.Add(templates);
         AddButton(loadLine, "自作設定を読み込む", LoadTemplate);
         AddButton(loadLine, "JSON書き出し", ExportTemplate);
@@ -98,21 +100,37 @@ internal sealed class NvidiaGlobalPage : UserControl
             Margin = new Padding(12, 10, 0, 0)
         });
         personal.Controls.Add(loadLine, 0, 1);
-        layout.Controls.Add(personal, 0, 3);
+        var presetSection = new TabPage("自分のNVIDIAプリセット") {
+            Padding = new Padding(8), AutoScroll = true
+        };
+        presetSection.Controls.Add(personal);
+        presetSection.Controls.Add(new Label {
+            Text = "現在値の取り込み・選択値の保存・JSONの持ち運びができます。\n" +
+                   "プリセットの選択ではドライバーを変更しません。実際の変更は下の「一括適用」で確定します。",
+            Dock = DockStyle.Top, Height = 52, Padding = new Padding(10, 6, 0, 0),
+            ForeColor = Color.FromArgb(63, 84, 112)
+        });
+        sections.TabPages.Add(presetSection);
+        layout.Controls.Add(sections, 0, 2);
 
-        var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+        var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3,
+            RowCount = 2, Margin = new Padding(0), BackColor = Color.FromArgb(238, 244, 250) };
+        bottom.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        bottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 265));
         status.Text = "NVIDIAドライバーがあるゲーミングPCで「現在の設定を取得」を押してください。";
+        status.Padding = new Padding(8, 0, 0, 0);
         bottom.Controls.Add(status, 0, 0);
+        bottom.SetColumnSpan(status, 3);
         restore.Dock = DockStyle.Fill;
         restore.Click += (_, _) => RestoreDriver();
-        bottom.Controls.Add(restore, 1, 0);
+        bottom.Controls.Add(restore, 1, 1);
         apply.Dock = DockStyle.Fill;
         apply.Click += (_, _) => ApplyDriver();
-        bottom.Controls.Add(apply, 2, 0);
-        layout.Controls.Add(bottom, 0, 4);
+        bottom.Controls.Add(apply, 2, 1);
+        layout.Controls.Add(bottom, 0, 3);
         Controls.Add(layout);
 
         foreach (var setting in NvidiaGlobalDrs.Settings)
