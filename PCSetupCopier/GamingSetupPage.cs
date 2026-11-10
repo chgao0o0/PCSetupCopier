@@ -27,8 +27,8 @@ internal sealed class GamingSetupPage : UserControl
     };
     private readonly Panel scroller = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Canvas };
     private readonly TableLayoutPanel content = new() {
-        ColumnCount = 1, RowCount = 5, AutoSize = true,
-        AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Canvas,
+        ColumnCount = 1, RowCount = 5, AutoSize = false,
+        Size = new Size(920, 655), BackColor = Canvas,
         Margin = Padding.Empty, Padding = new Padding(18, 14, 18, 16)
     };
 
@@ -170,9 +170,15 @@ internal sealed class GamingSetupPage : UserControl
 
     private void FitContent()
     {
-        int width = Math.Max(560, scroller.ClientSize.Width -
-            SystemInformation.VerticalScrollBarWidth - 2);
+        // TableLayoutPanel.AutoSize=GrowAndShrink previously ignored the Width
+        // assignment and collapsed the entire 3-column card grid to ~200px.
+        // Use an explicitly sized root so all percentage-width child columns
+        // expand to the available viewport. Only this inner panel scrolls.
+        int viewport = scroller.ClientSize.Width;
+        if (viewport <= 0) return;
+        int width = Math.Max(630, viewport - SystemInformation.VerticalScrollBarWidth - 2);
         if (content.Width != width) content.Width = width;
+        if (content.Height != 655) content.Height = 655;
     }
 
     private static Label SectionTitle(string overline, string caption) => new() {
