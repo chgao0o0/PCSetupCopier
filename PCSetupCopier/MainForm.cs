@@ -100,7 +100,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M8.0 (かんたん設定・丸ごと移植・復元)";
+        Text = "PC Setup Copier — M8.1 (安全性・互換性・操作性強化)";
         Size = new Size(1180, 760);
         MinimumSize = new Size(980, 660);
         AutoScaleMode = AutoScaleMode.Dpi;
