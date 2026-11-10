@@ -23,48 +23,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Keep the newest three existing build archives for rollback/downloads.
-          # Only transient artifacts with this exact name are affected.
+          # Only old generated build archives are pruned. Keep three newest.
           $ids = @(gh api --paginate "repos/$env:GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name == "PCSetupCopier-win-x64") | .id')
-          if ($LASTEXITCODE -ne 0) { throw "Cannot list CI archives; refusing to prune" }
-          $toDelete = @($ids | Where-Object { $_ -match '^[0-9]+
-        with:
-          dotnet-version: '8.0.x'
-      - name: Restore
-        run: dotnet restore PCSetupCopier/PCSetupCopier.csproj
-      - name: Build
-        run: dotnet build PCSetupCopier/PCSetupCopier.csproj -c Release --no-restore
-      - name: Publish (self-contained)
-        run: dotnet publish PCSetupCopier/PCSetupCopier.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
-      - name: Write build metadata
-        shell: pwsh
-        run: |
-          $info = @{ commit = "${{ github.sha }}"; version = "M8.1" } | ConvertTo-Json -Compress
-          Set-Content -LiteralPath "publish/build-info.json" -Value $info -Encoding utf8
-      - name: Write executable checksum
-        shell: pwsh
-        run: |
-          (Get-FileHash -Algorithm SHA256 -LiteralPath "publish/PCSetupCopier.exe").Hash.ToLowerInvariant() |
-            Set-Content -LiteralPath "publish/PCSetupCopier.exe.sha256" -Encoding ascii
-      - name: Run package preflight on Windows
-        shell: pwsh
-        run: |
-          $exe = (Resolve-Path "./publish/PCSetupCopier.exe").Path
-          $p = Start-Process -FilePath $exe -ArgumentList "--verify-package" -WorkingDirectory (Resolve-Path "./publish").Path -Wait -PassThru
-          Write-Host "Package verifier exit code: $($p.ExitCode)"
-          if ($p.ExitCode -ne 0) { throw "Package preflight failed with exit code $($p.ExitCode)" }
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PCSetupCopier-win-x64
-          path: publish/
-          retention-days: 1
-          if-no-files-found: error
- } | Select-Object -Skip 3)
-          Write-Host "Pruning $($toDelete.Count) superseded CI artifacts; retaining three latest."
-          foreach ($id in $toDelete) {
+          if ($LASTEXITCODE -ne 0) { throw "Cannot list CI archives" }
+          $all = @($ids | Where-Object { $_ -match "^[0-9]+$" })
+          $obsolete = @($all | Select-Object -Skip 3)
+          Write-Host "Removing $($obsolete.Count) superseded archives; keeping three newest."
+          foreach ($id in $obsolete) {
             gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$id" | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Failed to delete artifact $id" }
+            if ($LASTEXITCODE -ne 0) { throw "Cannot delete CI archive $id" }
           }
       - uses: actions/setup-dotnet@v4
         with:
@@ -97,4 +64,5 @@ jobs:
         with:
           name: PCSetupCopier-win-x64
           path: publish/
+          retention-days: 1
           if-no-files-found: error
