@@ -100,7 +100,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PC Setup Copier — M8.3 (画面幅とカード表示修正)";
+        Text = "PC Setup Copier — M8.4 (UI実測検証・安定化)";
         Size = new Size(1260, 800);
         MinimumSize = new Size(980, 660);
         AutoScaleMode = AutoScaleMode.Dpi;
