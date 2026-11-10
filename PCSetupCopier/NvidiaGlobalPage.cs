@@ -21,6 +21,7 @@ internal sealed class NvidiaGlobalPage : UserControl
     };
     private readonly Button restore = new() { Text = "前回の設定を復元", AutoSize = true, Height = 38 };
     private bool loaded;
+    private readonly TabControl sections = new() { Dock = DockStyle.Fill };
     private readonly TextBox search = new() {
         Width = 220, PlaceholderText = "項目を検索（例：アンチエイリアス）"
     };
@@ -29,9 +30,10 @@ internal sealed class NvidiaGlobalPage : UserControl
     {
         BackColor = Color.FromArgb(248, 250, 253);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
-            RowCount = 4, Padding = new Padding(12) };
+            RowCount = 5, Padding = new Padding(12) };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 89));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
 
@@ -39,6 +41,27 @@ internal sealed class NvidiaGlobalPage : UserControl
             Text = "NVIDIA グローバル3D設定（NVAPI）", Dock = DockStyle.Fill,
             Font = new Font("Yu Gothic UI", 15, FontStyle.Bold)
         }, 0, 0);
+
+        var quick = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true
+        };
+        var exportNow = new Button {
+            Text = "① このPCのNVIDIA設定を書き出す", AutoSize = true,
+            MinimumSize = new Size(257, 43), BackColor = Color.FromArgb(44, 105, 179),
+            ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
+            Margin = new Padding(3, 5, 10, 2)
+        };
+        exportNow.Click += (_, _) => QuickExport();
+        quick.Controls.Add(exportNow);
+        var importNow = new Button {
+            Text = "② 友達の設定ファイルを読み込む", AutoSize = true,
+            MinimumSize = new Size(275, 43), BackColor = Color.FromArgb(232, 241, 255),
+            ForeColor = Color.FromArgb(25, 65, 112), FlatStyle = FlatStyle.Flat,
+            Margin = new Padding(3, 5, 8, 2)
+        };
+        importNow.Click += (_, _) => QuickImport();
+        quick.Controls.Add(importNow);
+        layout.Controls.Add(quick, 0, 1);
 
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true };
         AddButton(actions, "現在のNVIDIA設定を取得", RefreshDriver);
@@ -54,7 +77,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         search.TextChanged += (_, _) => FilterRows();
         actions.Controls.Add(search);
         AddButton(actions, "変更前後をプレビュー", PreviewDriver);
-        layout.Controls.Add(actions, 0, 1);
+        layout.Controls.Add(actions, 0, 2);
 
         grid.Columns.Add(new DataGridViewCheckBoxColumn {
             HeaderText = "適用対象", Name = "Apply", FillWeight = 48
@@ -75,7 +98,6 @@ internal sealed class NvidiaGlobalPage : UserControl
             if (grid.IsCurrentCellDirty) grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         grid.DataError += (_, e) => { e.ThrowException = false; };
-        var sections = new TabControl { Dock = DockStyle.Fill };
         var settingsSection = new TabPage("設定一覧") { Padding = new Padding(4) };
         settingsSection.Controls.Add(grid);
         sections.TabPages.Add(settingsSection);
@@ -111,7 +133,7 @@ internal sealed class NvidiaGlobalPage : UserControl
             ForeColor = Color.FromArgb(63, 84, 112)
         });
         sections.TabPages.Add(presetSection);
-        layout.Controls.Add(sections, 0, 2);
+        layout.Controls.Add(sections, 0, 3);
 
         var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3,
             RowCount = 2, Margin = new Padding(0), BackColor = Color.FromArgb(238, 244, 250) };
@@ -130,7 +152,7 @@ internal sealed class NvidiaGlobalPage : UserControl
         apply.Dock = DockStyle.Fill;
         apply.Click += (_, _) => ApplyDriver();
         bottom.Controls.Add(apply, 2, 1);
-        layout.Controls.Add(bottom, 0, 3);
+        layout.Controls.Add(bottom, 0, 4);
         Controls.Add(layout);
 
         foreach (var setting in NvidiaGlobalDrs.Settings)
@@ -171,6 +193,84 @@ internal sealed class NvidiaGlobalPage : UserControl
             }
         }
         catch { /* Editing can be in progress; a later text change will retry. */ }
+    }
+
+    private void QuickExport()
+    {
+        using var save = new SaveFileDialog {
+            Filter = "NVIDIA設定の移植ファイル (*.json)|*.json",
+            DefaultExt = "json", FileName = "My-NVIDIA-Settings.json",
+            OverwritePrompt = true
+        };
+        if (save.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            int count = NvidiaQuickTransfer.ExportCurrent(save.FileName);
+            status.Text = "移植用ファイルを保存しました（" + count + "項目）。ドライバーは変更していません。";
+            MessageBox.Show(this,
+                count + "項目のNVIDIA設定を保存しました。\n\n" +
+                "このJSONファイルを友達のPCへ渡して、同じ画面の「② 友達の設定ファイルを読み込む」を押してください。\n" +
+                "不明な値や取得できない項目は書き出していません。",
+                "NVIDIA設定の書き出し完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "NVIDIA設定の書き出しに失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void QuickImport()
+    {
+        using var open = new OpenFileDialog {
+            Filter = "NVIDIA設定の移植ファイル (*.json)|*.json",
+            CheckFileExists = true, Title = "コピー元PCのNVIDIA設定ファイルを選択"
+        };
+        if (open.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            // Validate format and known values before opening the driver.
+            var transfer = NvidiaQuickTransfer.Import(open.FileName);
+            // An unavailable driver must not silently accept staged values as applicable.
+            RefreshDriver();
+            if (!loaded)
+                throw new NotSupportedException(
+                    "NVIDIAドライバーから現在値を取得できません。対応したゲーミングPCで試してください。");
+            int matched = 0;
+            int unavailable = transfer.Unrecognized;
+            grid.EndEdit();
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                var item = (NvidiaGlobalDrs.Setting)row.Tag!;
+                row.Cells["Apply"].Value = false;
+                if (!transfer.Values.TryGetValue(item.Key, out uint value)) continue;
+                var option = item.Options.FirstOrDefault(x => x.Value == value);
+                if (row.ReadOnly || option == null)
+                {
+                    unavailable++;
+                    continue;
+                }
+                row.Cells["Desired"].Value = option.Label;
+                row.Cells["Apply"].Value = true;
+                matched++;
+            }
+            if (matched == 0)
+                throw new NotSupportedException("移植先で設定できる項目がありません。");
+            sections.SelectedIndex = 0;
+            apply.Enabled = true;
+            status.Text = "移植候補 " + matched + "項目を準備済み。内容確認後に一括適用してください。";
+            MessageBox.Show(this,
+                "友達の設定から " + matched + "項目を適用候補にセットしました。\n" +
+                (unavailable == 0 ? "" : unavailable + "項目は未対応・未知のため除外しました。\n") +
+                "\nNVIDIAの設定はまだ変更していません。\n" +
+                "一覧で希望値を確認して、よければ画面下の「一括適用」を押してください。",
+                "NVIDIA設定の取り込み完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "NVIDIA設定の読み込みに失敗",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void RefreshTemplates()
