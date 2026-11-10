@@ -1,3 +1,12 @@
+## M7.3 — Expanded NVIDIA global 3D controls
+
+- Extended the verified, user-facing NVIDIA NVAPI DRS global-setting catalog from **4 to 30 options**: power, V-Sync, texture quality, per-driver frame cap, anisotropic filtering mode/level, anti-aliasing mode/quality, FXAA, MFAA, OpenGL optimizations and output settings, shader cache, anisotropic/trilinear optimizations, negative LOD bias, pre-rendered frames, preferred refresh rate, ambient occlusion and more.
+- Setting identifiers and candidate DWORD values were cross-checked against NVIDIA's public **NvApiDriverSettings.h**. Each item has separate desired value and opt-in checkmark, with built-in profile suggestions still staging only the original four, never forcing the new advanced controls.
+- Added an NVIDIA-setting **search field**, an **uncheck all** control and a more spacious wrapped action bar. Settings that cannot be read on the installed driver are grayed out and cannot be applied. A failure in one individual setting no longer hides every other reading.
+- Backups, read-back verification, change preview, custom NVIDIA template save/load/JSON export and explicit final Apply remain supported across the expanded catalog, with a per-setting unsupported-value guard.
+- This deliberately does **not** claim that every NVIDIA Control Panel page or every internal driver flag is editable. Driver/GPU-specific, display-specific and game-specific features (e.g. G-SYNC, DLSS, NVIDIA Reflex and some current latency controls) have other APIs or game/UI requirements. Experimental/undocumented flags must not be written through speculative registry offsets or guessed DWORDs.
+- M7.3 is compiled and package-preflight tested on Windows, but the NVIDIA driver actions still require validation on the intended gaming PC before large batch changes. First test read-only detection and one reversible option.
+
 ## M7.2 — Staged game GPU batch actions, backups and before/after comparison
 
 - **ゲーム・モニター** adds read-only staged batch tools: select up to 40 registered games for high-performance GPU preference, set only selected rows to high performance or Windows default, or clear all apply checkmarks. The controls only stage changes in the list; the existing explicit preview and Apply button still protects Windows changes.
