@@ -1,3 +1,15 @@
+## Public updater (current)
+
+The Windows app updates from public GitHub Releases over HTTPS. No GitHub CLI,
+GitHub account, personal access token, or authentication dialog is required.
+Download a verified ZIP from [Releases](https://github.com/chgao0o0/PCSetupCopier/releases)
+once to replace any older version that asks for a token. After that, use the
+in-app Update button. The updater validates the published commit, executable
+SHA-256, and preflight check, then retains its rollback behavior.
+
+Older updater documentation below is historical and may refer to private-repo
+authentication that is no longer required.
+
 ## Current updater (CLI-free)
 
 The packaged Windows application now checks the private GitHub repository through the
