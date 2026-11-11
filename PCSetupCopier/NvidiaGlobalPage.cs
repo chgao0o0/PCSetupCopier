@@ -273,14 +273,15 @@ internal sealed class NvidiaGlobalPage : UserControl
                 var state = states[item.Key];
                 string current = state.Available
                     ? NvidiaGlobalDrs.Label(item, state.Value)
-                    : "このドライバーでは未対応／取得不可";
+                    : "取得不可（理由はマウスを重ねて確認）";
                 row.ReadOnly = !state.Available;
                 if (!state.Available) row.Cells["Apply"].Value = false;
                 row.DefaultCellStyle.ForeColor = state.Available
                     ? Color.FromArgb(35, 48, 67) : Color.Gray;
                 row.Cells["Current"].Value = current;
-                row.Cells["Current"].ToolTipText = state.IsExplicit
-                    ? "グローバル設定に明示指定あり" : "プリセット／既定値";
+                row.Cells["Current"].ToolTipText = !state.Available
+                    ? (state.Diagnostic ?? "原因不明の取得失敗")
+                    : state.IsExplicit ? "グローバル設定に明示指定あり" : "プリセット／既定値";
                 if (!loaded)
                 {
                     var preferred = item.Options.FirstOrDefault(x => x.Value == state.Value);
@@ -291,7 +292,7 @@ internal sealed class NvidiaGlobalPage : UserControl
             int available = states.Values.Count(x => x.Available);
             apply.Enabled = available > 0;
             status.Text = available + " / " + NvidiaGlobalDrs.Settings.Count +
-                "件のNVIDIA設定を取得。未対応項目は編集不可です。";
+                "件取得。取得不可の項目は現在値にマウスを重ねて原因を確認してください。";
         }
         catch (Exception ex)
         {
