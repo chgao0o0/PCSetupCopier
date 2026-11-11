@@ -101,8 +101,9 @@ internal sealed class GamingDiagnosticsPage : UserControl
                 {
                     var state = states[setting.Key];
                     buffer.AppendLine("- " + setting.Title + ": " +
-                        NvidiaGlobalDrs.Label(setting, state.Value) +
-                        (state.IsExplicit ? "（明示設定）" : "（既定/継承）"));
+                        (state.Available ? NvidiaGlobalDrs.Label(setting, state.Value) +
+                            (state.IsExplicit ? "（明示設定）" : "（既定/継承）")
+                            : "取得不可: " + (state.Diagnostic ?? "原因未特定")));
                 }
             }
             catch (Exception ex)
