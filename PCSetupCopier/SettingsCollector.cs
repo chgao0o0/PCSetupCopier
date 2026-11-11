@@ -14,13 +14,13 @@ internal static class SettingsCollector
             Refresh(screens),
             GameMode(),
             Power(),
-            Unknown("graphics", "Windowsグラフィック設定", "HAGS・VRR・ゲーム別GPU指定などの総称です。個別の項目を参照してください。", "未対応"),
+            Result("graphics", "Windowsグラフィック設定", "HAGS / VRR / ゲーム別GPU指定を個別表示", "個別確認", "総称であり単一の設定値はありません。各項目で取得状況を確認してください。"),
             Capture(),
-            Unknown("fps_limit", "FPS制限関連", "Windows共通のFPS制限はありません。ゲーム・GPU側の設定は将来対応予定です。", "未対応"),
+            Result("fps_limit", "FPS制限関連", "Windows共通のFPS上限設定なし", "対象外", "ゲーム側またはNVIDIA側のFPS設定を確認してください。Windows共通の上限値は存在しません。"),
             MouseAcceleration(),
             Hags(),
-            Unknown("windowed_optimization", "ウィンドウゲームの最適化", "実効状態を検証できる方法が未実装です。", "未対応"),
-            Unknown("vrr", "可変リフレッシュレート（VRR）", "モニター・GPU・Windows側の対応を分けて確認する必要があります。", "未対応"),
+            Unknown("windowed_optimization", "ウィンドウゲームの最適化", "Windows設定画面の実効状態を安全に取得する公開APIを確認できないため、推測しません。", "検証不可"),
+            Unknown("vrr", "可変リフレッシュレート（VRR）", "WindowsのVRRスイッチ・GPUのVRR機能・モニター対応は別項目です。表示中のHzだけではVRRを断定できません。", "検証不可"),
             PerAppGpu()
         };
         return new PcSnapshot("1.3", DateTimeOffset.Now, "M8.4", Environment.MachineName,
@@ -115,7 +115,7 @@ internal static class SettingsCollector
         {
             using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", false);
             int? value = ReadDword(key, "HwSchMode");
-            if (value == null) return Unknown(id, name, "HwSchModeは未設定。GPU対応や既定状態は推測しません。");
+            if (value == null) return Result(id, name, "レジストリに明示設定なし（OS既定）", "既定値", "未設定は取得失敗ではありません。実効状態はGPU・ドライバー・Windowsバージョンによります。");
             string desired = value switch { 1 => "無効を要求", 2 => "有効を要求", _ => "意味未確認" };
             return Partial(id, name, $"HwSchMode={value} ({desired})",
                 "ドライバーへの要求値。実効状態にはGPU・ドライバー・再起動などが関係します。");
@@ -129,7 +129,7 @@ internal static class SettingsCollector
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\DirectX\UserGpuPreferences", false);
-            if (key == null) return Unknown(id, name, "アプリ別GPU優先設定が登録されていません。");
+            if (key == null) return Result(id, name, "明示的なGPU優先設定なし", "未設定", "登録がないことは取得失敗ではありません。アプリ別の既定GPU選択はWindowsが管理します。");
             var values = key.GetValueNames()
                 .Where(n => n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 .Select(n => key.GetValue(n)?.ToString() ?? "").ToArray();
