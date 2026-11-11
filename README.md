@@ -1,3 +1,21 @@
+## Current updater (CLI-free)
+
+The packaged Windows application now checks the private GitHub repository through the
+GitHub REST API using built-in HTTPS requests. **No GitHub CLI, gh auth login, or
+extra runtime installation is required.**
+
+On first use, the updater requests a fine-grained GitHub personal access token
+restricted to the `chgao0o0/PCSetupCopier` repository with **Contents: Read-only**.
+Windows Credential Manager stores the token for the current Windows user, not in
+the app folder or exported settings. The GitHub account must actually have access
+to the private repository; sharing an executable does not grant that access.
+
+After a new release is downloaded, the updater checks the package SHA-256,
+build commit and preflight, then uses a separate one-shot process for safe
+replacement and rollback. To migrate from an older `gh`-dependent build,
+download and extract the new verified Windows ZIP from GitHub Releases once.
+Earlier sections below describe the historical updater design.
+
 ## M8.1 — Compatibility and reliability hardening
 
 - **NVIDIA import compatibility:** On every import, refresh the destination driver's current settings and stage only known, supported values that differ from the destination and can be backed out safely. Unsupported entries, unchanged values and unfamiliar explicit overrides are excluded; never bypass the final preview and confirmation. This is a driver-readability check, **not** confirmation that applying a value is supported by a particular GPU.
