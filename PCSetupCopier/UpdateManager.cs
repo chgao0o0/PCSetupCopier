@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace PCSetupCopier;
 
-/// <summary>Private GitHub repository updates through the user's authenticated GitHub CLI.</summary>
+/// <summary>Private GitHub repository updates through native HTTPS and Windows credentials.</summary>
 internal static class UpdateManager
 {
     private const string Repository = "chgao0o0/PCSetupCopier";
@@ -22,18 +22,13 @@ internal static class UpdateManager
         using var installed = JsonDocument.Parse(await File.ReadAllTextAsync(installedMarker, cancellationToken));
         var oldSha = installed.RootElement.GetProperty("commit").GetString() ?? "";
 
-        // A signed-in user retrieves the build from this private repository's
-        // latest GitHub Release, independent of Actions artifact storage quotas.
+        // Authenticate once with a read-only token; never require GitHub CLI.
+        using var github = new GitHubReleaseClient();
         elapsed.Report("GitHub Releasesで最新版を確認しています…");
-        Task<string> releaseTask = GhAsync(
-            ["api", "repos/chgao0o0/PCSetupCopier/releases/latest",
-                "--jq", ".tag_name"], cancellationToken);
-        Task<string> branchTask = GhAsync(
-            ["api", "repos/chgao0o0/PCSetupCopier/commits/main", "--jq", ".sha"],
-            cancellationToken);
-        await Task.WhenAll(releaseTask, branchTask);
-        string branchSha = (await branchTask).Trim();
-        string latestTag = (await releaseTask).Trim();
+        using var release = await github.GetJsonAsync("releases/latest", cancellationToken);
+        using var branch = await github.GetJsonAsync("commits/main", cancellationToken);
+        string branchSha = branch.RootElement.GetProperty("sha").GetString() ?? "";
+        string latestTag = release.RootElement.GetProperty("tag_name").GetString() ?? "";
         if (branchSha.Length != 40 || !branchSha.All(Uri.IsHexDigit))
             throw new InvalidDataException("mainのコミットIDを取得できませんでした。");
         if (!latestTag.StartsWith("build-", StringComparison.Ordinal) ||
@@ -56,9 +51,19 @@ internal static class UpdateManager
         try
         {
             elapsed.Report("更新パッケージをダウンロードしています…");
-            await GhAsync(["release", "download", latestTag, "-R", Repository,
-                "-p", "PCSetupCopier-win-x64.zip", "-D", stage], cancellationToken);
             string archive = Path.Combine(stage, "PCSetupCopier-win-x64.zip");
+            long assetId = 0;
+            foreach (var asset in release.RootElement.GetProperty("assets").EnumerateArray())
+            {
+                if (asset.GetProperty("name").GetString() == "PCSetupCopier-win-x64.zip")
+                {
+                    assetId = asset.GetProperty("id").GetInt64();
+                    break;
+                }
+            }
+            if (assetId <= 0)
+                throw new InvalidDataException("最新ReleaseにWindows用ZIPがありません。");
+            await github.DownloadAssetAsync(assetId, archive, cancellationToken);
             if (!File.Exists(archive) || new FileInfo(archive).Length < 100_000)
                 throw new InvalidDataException("GitHub Releaseの更新ZIPが不足しています。");
             System.IO.Compression.ZipFile.ExtractToDirectory(archive, stage, overwriteFiles: true);
@@ -110,45 +115,6 @@ internal static class UpdateManager
         internal void Report(string message) =>
             progress.Report($"[{stopwatch.Elapsed.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}秒] {message}");
         public void Dispose() => stopwatch.Stop();
-    }
-
-    private static async Task<string> GhAsync(string[] args, CancellationToken ct)
-    {
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo("gh")
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (string arg in args) process.StartInfo.ArgumentList.Add(arg);
-        try { process.Start(); }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            throw new InvalidOperationException(
-                "GitHub CLI (gh) がありません。最初の1回だけ https://cli.github.com/ からインストールして、gh auth login を実行してください。");
-        }
-        Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
-        Task<string> stderr = process.StandardError.ReadToEndAsync(ct);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromMinutes(3));
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch
-        {
-            try { process.Kill(entireProcessTree: true); } catch { }
-            throw;
-        }
-        string output = await stdout;
-        string error = await stderr;
-        if (process.ExitCode != 0)
-        {
-            string hint = args[0] == "auth"
-                ? "GitHubへのログインが必要です。ターミナルで gh auth login を実行してください。"
-                : "GitHubから取得できませんでした。アクセス権とActionsの実行結果を確認してください。";
-            throw new InvalidOperationException(hint + "\n" + error[..Math.Min(error.Length, 500)]);
-        }
-        return output;
     }
 
     private static async Task PreflightAsync(string stagedExe, CancellationToken cancellationToken)
