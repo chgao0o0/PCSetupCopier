@@ -273,7 +273,11 @@ internal sealed class NvidiaGlobalPage : UserControl
                 var state = states[item.Key];
                 string current = state.Available
                     ? NvidiaGlobalDrs.Label(item, state.Value)
-                    : "取得不可（理由はマウスを重ねて確認）";
+                    : state.Diagnostic?.Contains("認識ID一覧にありません", StringComparison.Ordinal) == true
+                        ? "ドライバーの認識IDにありません"
+                        : state.Diagnostic?.Contains("NVAPI -160", StringComparison.Ordinal) == true
+                            ? "設定なし（NVAPI -160）"
+                            : "取得エラー（詳細はマウスを重ねて確認）";
                 row.ReadOnly = !state.Available;
                 if (!state.Available) row.Cells["Apply"].Value = false;
                 row.DefaultCellStyle.ForeColor = state.Available
