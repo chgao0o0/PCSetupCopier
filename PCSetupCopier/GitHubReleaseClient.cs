@@ -96,10 +96,10 @@ internal sealed class GitHubReleaseClient : IDisposable
         };
         var help = new Label
         {
-            Text = "この更新元は非公開GitHubリポジトリです。\\n" +
-                   "GitHubのFine-grained personal access tokenを入力してください。\\n" +
-                   "対象: PCSetupCopier / 権限: Contents (Read-only)\\n" +
-                   "トークンはWindows資格情報マネージャーに保存します。",
+            Text = "非公開GitHubリポジトリから更新します。\n" +
+                   "初回のみGitHubのアクセストークンが必要です。\n" +
+                   "対象: PCSetupCopier / 権限: Contents (読み取り専用)\n" +
+                   "入力内容はWindows資格情報に保存されます。",
             AutoSize = false, Left = 18, Top = 16, Width = 445, Height = 100
         };
         var field = new TextBox
