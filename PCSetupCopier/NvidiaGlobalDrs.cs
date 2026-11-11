@@ -9,7 +9,7 @@ internal static class NvidiaGlobalDrs
 {
     internal sealed record Option(string Label, uint Value);
     internal sealed record Setting(string Key, string Title, uint Id, IReadOnlyList<Option> Options);
-    internal sealed record State(string Key, uint? Value, bool IsExplicit, bool Available = true);
+    internal sealed record State(string Key, uint? Value, bool IsExplicit, bool Available = true, string? Diagnostic = null);
     internal sealed record Change(string Key, uint? Before, uint After, bool BeforeExplicit);
     private sealed record Backup(DateTimeOffset Timestamp, List<Change> Changes);
 
@@ -118,6 +118,8 @@ internal static class NvidiaGlobalDrs
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetSettingDelegate(IntPtr session, IntPtr profile, uint id, IntPtr setting);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int AvailableIdsDelegate([Out] uint[] ids, ref uint count);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int SetSettingDelegate(IntPtr session, IntPtr profile, IntPtr setting);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int DeleteSettingDelegate(IntPtr session, IntPtr profile, uint id);
@@ -128,6 +130,7 @@ internal static class NvidiaGlobalDrs
         private readonly StatusDelegate unload;
         private readonly HandleDelegate destroy;
         private readonly GetSettingDelegate get;
+        private readonly AvailableIdsDelegate? availableIds;
         private readonly SetSettingDelegate set;
         private readonly DeleteSettingDelegate delete;
         private readonly HandleDelegate save;
@@ -160,6 +163,9 @@ internal static class NvidiaGlobalDrs
                 unload = Func<StatusDelegate>(query, 0xD22BDD7E);
                 destroy = Func<HandleDelegate>(query, 0xDAD9CFF8);
                 get = Func<GetSettingDelegate>(query, 0x73BF8338);
+                var enumPointer = query(0xF020614A);
+                if (enumPointer != IntPtr.Zero)
+                    availableIds = Marshal.GetDelegateForFunctionPointer<AvailableIdsDelegate>(enumPointer);
                 set = Func<SetSettingDelegate>(query, 0x577DD202);
                 delete = Func<DeleteSettingDelegate>(query, 0xE4A26362);
                 save = Func<HandleDelegate>(query, 0xFCBC7E14);
@@ -178,6 +184,17 @@ internal static class NvidiaGlobalDrs
             }
         }
 
+        internal HashSet<uint>? EnumerateRecognizedIds()
+        {
+            if (availableIds == null) return null;
+            var ids = new uint[2048];
+            uint count = (uint)ids.Length;
+            int code = availableIds(ids, ref count);
+            if (code != 0 || count > ids.Length)
+                throw new InvalidOperationException("DRS_EnumAvailableSettingIds: NVAPI " + code);
+            return ids.Take((int)count).ToHashSet();
+        }
+
         internal State Read(Setting item)
         {
             var data = Marshal.AllocHGlobal(StructSize);
@@ -186,7 +203,7 @@ internal static class NvidiaGlobalDrs
                 for (int i = 0; i < StructSize; i++) Marshal.WriteByte(data, i, 0);
                 Marshal.WriteInt32(data, Version);
                 int result = get(session, profile, item.Id, data);
-                if (result == -160) return new State(item.Key, null, false, false);
+                if (result == -160) return new State(item.Key, null, false, false, "NVAPI -160: 設定が見つかりません");
                 Check(result, "DRS_GetSetting " + item.Title);
                 if (Marshal.ReadInt32(data, TypeOffset) != 0)
                     throw new InvalidDataException("NVIDIA設定がDWORD形式ではありません: " + item.Title);
@@ -239,14 +256,24 @@ internal static class NvidiaGlobalDrs
     internal static IReadOnlyList<State> ReadAll()
     {
         using var connection = new Connection();
+        HashSet<uint>? recognized = null;
+        string? enumerationError = null;
+        try { recognized = connection.EnumerateRecognizedIds(); }
+        catch (Exception ex) { enumerationError = ex.Message; }
         var states = new List<State>();
         foreach (var item in Settings)
         {
+            if (recognized != null && !recognized.Contains(item.Id))
+            {
+                states.Add(new State(item.Key, null, false, false,
+                    "このドライバーのNVAPI認識ID一覧にありません (0x" + item.Id.ToString("X8") + ")"));
+                continue;
+            }
             try { states.Add(connection.Read(item)); }
             catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or NotSupportedException)
             {
-                // An unavailable setting must not prevent reading other settings.
-                states.Add(new State(item.Key, null, false, false));
+                states.Add(new State(item.Key, null, false, false,
+                    ex.Message + (enumerationError == null ? "" : " / ID列挙: " + enumerationError)));
             }
         }
         return states;
