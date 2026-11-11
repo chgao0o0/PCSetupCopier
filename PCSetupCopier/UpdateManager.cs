@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace PCSetupCopier;
 
-/// <summary>Private GitHub repository updates through native HTTPS and Windows credentials.</summary>
+/// <summary>Public GitHub Release updates over HTTPS without external tools or credentials.</summary>
 internal static class UpdateManager
 {
     private const string Repository = "chgao0o0/PCSetupCopier";
@@ -22,7 +22,7 @@ internal static class UpdateManager
         using var installed = JsonDocument.Parse(await File.ReadAllTextAsync(installedMarker, cancellationToken));
         var oldSha = installed.RootElement.GetProperty("commit").GetString() ?? "";
 
-        // Authenticate once with a read-only token; never require GitHub CLI.
+        // Public repository: no authentication or GitHub CLI required.
         using var github = new GitHubReleaseClient();
         elapsed.Report("GitHub Releasesで最新版を確認しています…");
         using var release = await github.GetJsonAsync("releases/latest", cancellationToken);
@@ -45,7 +45,7 @@ internal static class UpdateManager
             "PC Setup Copier", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return "更新をキャンセルしました。";
 
-        // Only the authenticated GitHub Actions artifact is accepted.
+        // Accept only the release package matching the verified source commit.
         string stage = Path.Combine(Path.GetTempPath(), "PCSetupCopierUpdate", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stage);
         try
